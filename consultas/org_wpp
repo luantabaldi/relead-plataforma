@@ -1,0 +1,68 @@
+# Planejamento de Contingência e Organização de Números WhatsApp
+
+Este documento define a estratégia de proteção e distribuição de números para evitar bloqueios e garantir a continuidade operacional dos setores de Locação, Prontos e Lançamentos.
+
+---
+
+## 1. Princípio de Separação por Risco
+
+A Meta (WhatsApp) monitora o comportamento de cada número individualmente. Misturar prospecção ativa com avisos internos é a causa principal de bloqueios em cascata.
+
+| Categoria | Nível de Risco | Perfil de Mensagem |
+| :--- | :--- | :--- |
+| **Tier 1: Marketing** | 🔴 Alto | Prospecção ativa, Reativação de base fria. |
+| **Tier 2: Captação** | 🟡 Médio | Prospecção de proprietários (Outbound mais qualificado). |
+| **Tier 3: Avisos** | 🟢 Baixo | Notificações de leads, avisos para proprietários e corretores. |
+
+---
+
+## 2. Estrutura de Números Sugerida (Ideal: 7 Números)
+
+### 2.1. Setor: Lançamentos & Prontos (Marketing)
+*   **Número 01:** `WPP-Lançamentos-Mkt` (Oferta ativa + Reativação).
+*   **Número 02:** `WPP-Prontos-Mkt` (Oferta ativa + Reativação).
+*   **Número 03 (Backup):** `WPP-Reserva-Mkt` (Assume o lugar de qualquer um acima em caso de bloqueio).
+
+### 2.2. Setor: Captação (Prontos & Locação)
+*   **Número 04:** `WPP-Captacao-Geral` (Focado em proprietários de imóveis).
+
+### 2.3. Setor: Geral (Avisos e Notificações)
+*   **Número 05:** `WPP-Avisos-Clientes` (Avisos de leads na base, proprietários e clientes).
+*   **Número 06:** `WPP-Notificacao-Interna` (Avisos para corretores e gestores).
+*   **Número 07 (Backup):** `WPP-Reserva-Avisos` (Número "limpo" para emergências).
+
+---
+
+## 3. Implementação Técnica (n8n + Evolution API)
+
+Cada número deve ser configurado como uma **Instância separada** na Evolution API. No n8n, a lógica deve usar variáveis para definir qual instância enviar.
+
+### Exemplo de Instâncias:
+- `sym-lancamentos-mkt`
+- `sym-prontos-mkt`
+- `sym-captacao`
+- `sym-avisos`
+- `sym-interno`
+
+### Lógica de Fallback no n8n:
+No nó de "Enviar WhatsApp", o campo `Instance Name` deve ser dinâmico ou facilmente alterável globalmente (via variáveis de ambiente ou uma tabela de configuração no Supabase), permitindo que você mude o número de disparo em todos os fluxos com um único ajuste.
+
+---
+
+## 4. Regras de Ouro e Boas Práticas
+
+1.  **Nunca Misture:** Se o número de prospecção cair, o seu sistema de avisos internos para corretores **precisa** continuar de pé em um número separado.
+2.  **Aquecimento (Warm-up):** Números novos devem começar com volumes baixos (50/dia) e subir 20% a cada 2 dias até atingir a meta.
+3.  **Botão de Descadrastro:** Sempre incluir opção de "Parar de receber" nos fluxos de Marketing (Tier 1) para evitar denúncias manuais.
+4.  **DDD Dedicado:** Tente usar chips com o mesmo DDD da região de atuação (Curitiba/PR) para aumentar a confiança do lead.
+5.  **Identidade Visual:** Configure a foto de perfil, bio e catálogo em todos os números para dar profissionalismo e reduzir denúncias.
+
+---
+
+## 5. Resumo da Estrutura
+
+| Cenário | Qtd. | Composição |
+| :--- | :--- | :--- |
+| **Mínimo Viável** | 3 | 1 Marketing + 1 Captação + 1 Avisos |
+| **Resiliente** | 5 | 2 Marketing + 1 Backup + 1 Captação + 1 Avisos |
+| **Ideal** | 7 | Estrutura completa detalhada no item 2 |

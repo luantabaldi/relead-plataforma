@@ -1,0 +1,36 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .pairing { display: flex; flex-direction: column; gap: 18px; padding: 4px 0; }
+  .row1 { font: 500 52px/0.95 var(--font-display); color: var(--ink-300); letter-spacing: -0.02em; }
+  .row1 em { font-style: italic; color: var(--orange-600); font-weight: 500; }
+  .row2 { display: flex; align-items: baseline; gap: 14px; }
+  .num {
+    font-family: "Google Sans Flex Display", "Google Sans Flex", -apple-system, sans-serif;
+    font-weight: 600;
+    font-size: 52px;
+    line-height: 1;
+    color: var(--ink-300);
+    letter-spacing: -0.025em;
+    font-feature-settings: "tnum" 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .num .currency { color: var(--ink-50); font-weight: 400; font-size: 30px; margin-right: 4px; vertical-align: 6px; letter-spacing: 0; }
+  .num .cents { color: var(--ink-50); font-weight: 400; font-size: 30px; letter-spacing: -0.01em; }
+  .delta { font: 700 11px/1 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--green-500); background: var(--green-50); padding: 7px 12px; border-radius: 999px; }
+  .caption { font: 400 13px/1.55 var(--font-body); color: var(--ink-100); letter-spacing: -0.01em; max-width: 480px; }
+  .caption em { color: var(--orange-600); font-style: italic; font-family: var(--font-display); font-weight: 500; font-size: 15px; }
+  .caption b { font-family: "Google Sans Flex", sans-serif; font-weight: 600; color: var(--ink-300); letter-spacing: -0.01em; }
+</style></head>
+<body>
+<div class="card">
+  <div class="pairing">
+    <div class="row1">Good morning, <em>Sajibur</em></div>
+    <div class="row2">
+      <div class="num"><span class="currency">$</span>23,194<span class="cents">.80</span></div>
+      <div class="delta">▲ 12.4% MoM</div>
+    </div>
+    <div class="caption">Two-face system — Cormorant carries the human-facing line, and <b>Google Sans Flex</b> carries everything else: running text, labels, eyebrows, and every number.</div>
+  </div>
+</div>
+</body></html>

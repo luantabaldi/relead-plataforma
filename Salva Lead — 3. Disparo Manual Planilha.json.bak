@@ -1,0 +1,1266 @@
+{
+  "success": true,
+  "data": {
+    "updatedAt": "2026-07-20T19:32:33.846Z",
+    "createdAt": "2026-04-29T13:57:38.828Z",
+    "id": "nOqjQMPHjDRZM6WZ",
+    "name": "Salva Lead — 3. Disparo Manual Planilha",
+    "description": null,
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "options": {
+            "responseHeaders": {
+              "entries": [
+                {
+                  "name": "Access-Control-Allow-Origin",
+                  "value": "*"
+                },
+                {
+                  "name": "Access-Control-Allow-Headers",
+                  "value": "Content-Type, Authorization"
+                },
+                {
+                  "name": "Access-Control-Allow-Methods",
+                  "value": "POST, GET, OPTIONS"
+                }
+              ]
+            }
+          },
+          "path": "disparo-manual-planilha",
+          "responseMode": "responseNode"
+        },
+        "id": "wk3-webhook-trigger",
+        "name": "Iniciar Disparo (Webhook)",
+        "position": [
+          -480,
+          -112
+        ],
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "webhookId": "ce3ee1d3-615d-492e-8f9a-9c4180085167",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "options": {
+            "responseCode": 200,
+            "responseHeaders": {
+              "entries": [
+                {
+                  "name": "Access-Control-Allow-Origin",
+                  "value": "*"
+                },
+                {
+                  "name": "Access-Control-Allow-Headers",
+                  "value": "Content-Type, Authorization"
+                },
+                {
+                  "name": "Access-Control-Allow-Methods",
+                  "value": "POST, GET, OPTIONS"
+                }
+              ]
+            }
+          },
+          "respondWith": "json",
+          "responseBody": "={\n  \"status\": \"iniciado\",\n  \"mensagem\": \"Disparo manual via Supabase iniciado com sucesso.\"\n}"
+        },
+        "id": "wk3-resp-ok",
+        "name": "Confirmar Inicio",
+        "position": [
+          -32,
+          -192
+        ],
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5
+      },
+      {
+        "parameters": {
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              }
+            ]
+          },
+          "options": {},
+          "sendHeaders": true,
+          "url": "https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?status_reativacao=eq.Pendente"
+        },
+        "id": "wk3-read-sheet",
+        "name": "Ler Leads Pendentes Supabase",
+        "position": [
+          -256,
+          -40
+        ],
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const rows = $input.all();\nconst results = [];\n\nfor (const row of rows) {\n  const d = row.json;\n\n  const status = (d.status_reativacao || '').trim();\n  if (status !== 'Pendente') continue;\n\n  const nome = (d.nome_lead || '').trim();\n  let telefone = (d.telefone || '').toString().trim();\n  const id = d.id || '';\n\n  if (!nome || !telefone) continue;\n\n  telefone = telefone.replace(/\\D/g, '');\n\n  if (!telefone.startsWith('55')) {\n    if (telefone.length === 11) {\n      telefone = '55' + telefone;\n    } else if (telefone.length === 10) {\n      const ddd = telefone.substring(0, 2);\n      const num = telefone.substring(2);\n      telefone = '55' + ddd + '9' + num;\n    }\n  }\n\n  const primeiroNome = nome.split(' ')[0];\n  const leadIdCrm = (d.lead_id_cvcrm || '').toString();\n  const templateNome = (d.mensagem_enviada || '').toString().trim();\n  const observacao = (d.observacao_crm || '').toString().trim();\n  const tipoCampanha = (d.tipo_campanha || 'reativacao').toString().trim();\n  const idEmpreendimento = (d.empreendimento_id || '').toString().trim();\n\n  results.push({ json: { nome, primeiroNome, telefone, id, leadIdCrm, templateNome, observacao, tipoCampanha, idEmpreendimento } });\n}\n\nif (results.length === 0) {\n  return [{ json: { nenhum_pendente: true, total: 0 } }];\n}\n\nreturn results;"
+        },
+        "id": "wk3-validar-linha",
+        "name": "Validar e Normalizar Linha",
+        "position": [
+          -32,
+          8
+        ],
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "combinator": "and",
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{ $json.nenhum_pendente }}",
+                "operator": {
+                  "operation": "true",
+                  "singleValue": true,
+                  "type": "boolean"
+                },
+                "rightValue": true
+              }
+            ],
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            }
+          },
+          "options": {}
+        },
+        "id": "wk3-check-pendente",
+        "name": "Tem Leads Pendentes?",
+        "position": [
+          192,
+          -8
+        ],
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "return [{ json: { status: 'sem_leads', mensagem: 'Nenhum lead pendente no Supabase.' } }];"
+        },
+        "id": "wk3-sem-leads",
+        "name": "Sem Leads Pendentes (Log)",
+        "position": [
+          416,
+          -96
+        ],
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "id": "wk3-split",
+        "name": "Processar 1 por Vez",
+        "position": [
+          416,
+          96
+        ],
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              }
+            ]
+          },
+          "options": {},
+          "sendHeaders": true,
+          "url": "=https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?telefone=in.({{ $json.telefone }},{{ $json.telefone.startsWith('55') ? $json.telefone.substring(2) : $json.telefone }})&status_reativacao=neq.Pendente&limit=1"
+        },
+        "alwaysOutputData": true,
+        "id": "wk3-check-supa",
+        "name": "Verificar Se Ja Enviado (Supabase)",
+        "position": [
+          640,
+          32
+        ],
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "combinator": "and",
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{ Array.isArray($json) ? $json.length : 0 }}",
+                "operator": {
+                  "operation": "equals",
+                  "type": "number"
+                },
+                "rightValue": 0
+              }
+            ],
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            }
+          },
+          "options": {}
+        },
+        "id": "wk3-check-novo",
+        "name": "Lead Ja Foi Enviado?",
+        "position": [
+          864,
+          16
+        ],
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const d = $('Processar 1 por Vez').first().json;\nconst agoraObj = new Date();\nconst agora = agoraObj.toISOString();\nconst templateNome = (d.templateNome || '').trim();\n\n// Verificação de horário (America/Sao_Paulo)\nconst horaAtualSP = new Date(agoraObj.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));\nconst horas = horaAtualSP.getHours();\nconst minutos = horaAtualSP.getMinutes();\n\n// Trava de horário: Não enviar antes das 07:00 nem depois das 21:30\nif (horas > 21 || (horas === 21 && minutos >= 30) || horas < 7) {\n  return [{\n    json: {\n      templateValido: false,\n      nome: d.nome,\n      telefone: d.telefone,\n      id: d.id,\n      statusPlanilha: 'Pausado (Horário Excedido)'\n    }\n  }];\n}\n\nif (!templateNome) {\n  return [{\n    json: {\n      templateValido: false,\n      nome: d.nome,\n      telefone: d.telefone,\n      id: d.id,\n      statusPlanilha: 'Erro - Template vazio'\n    }\n  }];\n}\n\nconst primeiroNome = d.primeiroNome || d.nome.split(' ')[0];\nconst tipoCampanha = d.tipoCampanha || 'reativacao';\nconst idEmpreendimento = d.idEmpreendimento || '';\n\n// Setup basic template message\nconst templateMessage = {\n  name: templateNome,\n  language: 'pt_BR',\n  components: []\n};\n\n// Obter configuração dinâmica do template do Supabase\nconst templateResponse = $('Obter Template Supabase').first().json;\nconst templateData = Array.isArray(templateResponse) ? templateResponse[0] : templateResponse;\n\n// Se o template estiver cadastrado e explicitamente disser que NÃO tem variáveis,\n// temVariaveis será falso. Caso contrário (se não achar ou se estiver marcado true), assume true.\nconst temVariaveis = templateData ? (templateData.tem_variaveis !== false) : true;\n\nif (temVariaveis) {\n  templateMessage.components.push({\n    type: 'body',\n    parameters: [{ type: 'text', text: primeiroNome }]\n  });\n}\n\nreturn [{\n  json: {\n    templateValido: true,\n    nome: d.nome,\n    primeiroNome,\n    telefone: d.telefone,\n    id: d.id,\n    leadIdCrm: d.leadIdCrm || '',\n    templateNome,\n    tipoCampanha,\n    observacao: d.observacao || '',\n    idEmpreendimento,\n    statusPlanilha: 'Enviado',\n    evolutionPayload: {\n      number: d.telefone,\n      templateMessage: templateMessage\n    },\n    supabasePayload: {\n      lead_id_cvcrm: d.leadIdCrm || d.telefone,\n      telefone: d.telefone,\n      nome_lead: d.nome,\n      status_reativacao: 'Enviado',\n      tipo_campanha: tipoCampanha,\n      data_envio: agora,\n      corretor_id_cvcrm: null,\n      observacao_crm: d.observacao || null,\n      empreendimento_id: idEmpreendimento || null,\n      historico_mensagens: [{ remetente: 'TEMPLATE_WABA', template: templateNome, mensagem: 'Template: ' + templateNome, timestamp: agora }],\n      mensagem_enviada: 'Template: ' + templateNome + (temVariaveis ? ' | Param: ' + primeiroNome : '')\n    }\n  }\n}];"
+        },
+        "id": "wk3-prep-payload",
+        "name": "Preparar Payload WhatsApp",
+        "position": [
+          1088,
+          -64
+        ],
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "combinator": "and",
+            "conditions": [
+              {
+                "id": "tpl",
+                "leftValue": "={{ $json.templateValido }}",
+                "operator": {
+                  "name": "filter.operator.equals",
+                  "operation": "equals",
+                  "type": "boolean"
+                },
+                "rightValue": true
+              }
+            ],
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            }
+          },
+          "options": {}
+        },
+        "id": "wk3-if-template",
+        "name": "Template Valido?",
+        "position": [
+          1312,
+          -64
+        ],
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://72.60.244.51:8080/message/sendTemplate/sym-imoveis-oficial",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "keySYMIMOVEIS2026"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.evolutionPayload) }}",
+          "options": {}
+        },
+        "id": "wk3-send-evo",
+        "name": "Enviar Template WhatsApp",
+        "position": [
+          1536,
+          -64
+        ],
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "amount": 40
+        },
+        "id": "wk3-wait",
+        "name": "Aguardar 45 Segundos",
+        "position": [
+          1984,
+          112
+        ],
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "webhookId": "46de8a42-4a26-4484-9ad3-d0b306e1faa1"
+      },
+      {
+        "parameters": {
+          "jsCode": "const d = $('Processar 1 por Vez').first().json;\nreturn [{ json: { pulado: true, telefone: d.telefone } }];"
+        },
+        "id": "wk3-pular-enviado",
+        "name": "Pular (Ja Enviado)",
+        "position": [
+          1760,
+          128
+        ],
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "jsonBody": "={{ { status_reativacao: $('Enviar Template WhatsApp').first().json.error ? 'Erro no Disparo' : 'Enviado', data_envio: new Date().toISOString(), mensagem_enviada: $('Enviar Template WhatsApp').first().json.error ? 'Falha: ' + ($('Enviar Template WhatsApp').first().json.error && $('Enviar Template WhatsApp').first().json.error.message ? $('Enviar Template WhatsApp').first().json.error.message : 'Erro Desconhecido') : $('Preparar Payload WhatsApp').first().json.supabasePayload.mensagem_enviada, historico_mensagens: $('Preparar Payload WhatsApp').first().json.supabasePayload.historico_mensagens } }}",
+          "method": "PATCH",
+          "options": {},
+          "sendBody": true,
+          "sendHeaders": true,
+          "specifyBody": "json",
+          "url": "=https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?id=eq.{{ $('Processar 1 por Vez').first().json.id }}"
+        },
+        "id": "wk3-update-sheet",
+        "name": "Atualizar Status no Supabase",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          1760,
+          -64
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "wk3-get-template",
+        "name": "Obter Template Supabase",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -144,
+          -112
+        ],
+        "parameters": {
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              }
+            ]
+          },
+          "sendHeaders": true,
+          "url": "=https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/templates_wpp?or=(id.eq.{{ $(\\\"Iniciar Disparo (Webhook)\\\").item.json.template_id }},nome.eq.{{ $(\\\"Iniciar Disparo (Webhook)\\\").item.json.template_id }})"
+        }
+      }
+    ],
+    "connections": {
+      "Aguardar 45 Segundos": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Processar 1 por Vez",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Lead Ja Foi Enviado?": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Preparar Payload WhatsApp",
+              "type": "main"
+            }
+          ],
+          [
+            {
+              "index": 0,
+              "node": "Pular (Ja Enviado)",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Ler Leads Pendentes Supabase": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Validar e Normalizar Linha",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Preparar Payload WhatsApp": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Template Valido?",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Pular (Ja Enviado)": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Aguardar 45 Segundos",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Tem Leads Pendentes?": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Sem Leads Pendentes (Log)",
+              "type": "main"
+            }
+          ],
+          [
+            {
+              "index": 0,
+              "node": "Processar 1 por Vez",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Template Valido?": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Enviar Template WhatsApp",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Validar e Normalizar Linha": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Tem Leads Pendentes?",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Verificar Se Ja Enviado (Supabase)": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Lead Ja Foi Enviado?",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Enviar Template WhatsApp": {
+        "main": [
+          [
+            {
+              "node": "Atualizar Status no Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Atualizar Status no Supabase": {
+        "main": [
+          [
+            {
+              "node": "Aguardar 45 Segundos",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Processar 1 por Vez": {
+        "main": [
+          [],
+          [
+            {
+              "node": "Verificar Se Ja Enviado (Supabase)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Iniciar Disparo (Webhook)": {
+        "main": [
+          [
+            {
+              "node": "Confirmar Inicio",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Confirmar Inicio": {
+        "main": [
+          [
+            {
+              "node": "Obter Template Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Obter Template Supabase": {
+        "main": [
+          [
+            {
+              "node": "Ler Leads Pendentes Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "saveDataErrorExecution": "all",
+      "saveDataSuccessExecution": "all",
+      "saveManualExecutions": true,
+      "callerPolicy": "workflowsFromSameOwner",
+      "availableInMCP": false,
+      "binaryMode": "separate"
+    },
+    "staticData": null,
+    "meta": {
+      "templateCredsSetupCompleted": true
+    },
+    "pinData": {},
+    "versionId": "b9576aad-5a29-4b55-913f-7ab1e24675c2",
+    "activeVersionId": "b9576aad-5a29-4b55-913f-7ab1e24675c2",
+    "versionCounter": 170,
+    "triggerCount": 1,
+    "shared": [
+      {
+        "updatedAt": "2026-04-29T13:57:38.828Z",
+        "createdAt": "2026-04-29T13:57:38.828Z",
+        "role": "workflow:owner",
+        "workflowId": "nOqjQMPHjDRZM6WZ",
+        "projectId": "J0NusIYKhSdXeRh7",
+        "project": {
+          "updatedAt": "2025-12-22T15:15:49.173Z",
+          "createdAt": "2025-12-22T15:06:58.923Z",
+          "id": "J0NusIYKhSdXeRh7",
+          "name": "Luan Tabaldi <gt.luantabaldi@gmail.com>",
+          "type": "personal",
+          "icon": null,
+          "description": null,
+          "creatorId": "2692e6d8-5c6b-4f11-8fe3-2e84c21f27ee"
+        }
+      }
+    ],
+    "tags": [],
+    "activeVersion": {
+      "updatedAt": "2026-07-20T19:32:33.856Z",
+      "createdAt": "2026-07-20T19:32:33.856Z",
+      "versionId": "b9576aad-5a29-4b55-913f-7ab1e24675c2",
+      "workflowId": "nOqjQMPHjDRZM6WZ",
+      "nodes": [
+        {
+          "parameters": {
+            "httpMethod": "POST",
+            "options": {
+              "responseHeaders": {
+                "entries": [
+                  {
+                    "name": "Access-Control-Allow-Origin",
+                    "value": "*"
+                  },
+                  {
+                    "name": "Access-Control-Allow-Headers",
+                    "value": "Content-Type, Authorization"
+                  },
+                  {
+                    "name": "Access-Control-Allow-Methods",
+                    "value": "POST, GET, OPTIONS"
+                  }
+                ]
+              }
+            },
+            "path": "disparo-manual-planilha",
+            "responseMode": "responseNode"
+          },
+          "id": "wk3-webhook-trigger",
+          "name": "Iniciar Disparo (Webhook)",
+          "position": [
+            -480,
+            -112
+          ],
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 2.1,
+          "webhookId": "ce3ee1d3-615d-492e-8f9a-9c4180085167",
+          "onError": "continueRegularOutput"
+        },
+        {
+          "parameters": {
+            "options": {
+              "responseCode": 200,
+              "responseHeaders": {
+                "entries": [
+                  {
+                    "name": "Access-Control-Allow-Origin",
+                    "value": "*"
+                  },
+                  {
+                    "name": "Access-Control-Allow-Headers",
+                    "value": "Content-Type, Authorization"
+                  },
+                  {
+                    "name": "Access-Control-Allow-Methods",
+                    "value": "POST, GET, OPTIONS"
+                  }
+                ]
+              }
+            },
+            "respondWith": "json",
+            "responseBody": "={\n  \"status\": \"iniciado\",\n  \"mensagem\": \"Disparo manual via Supabase iniciado com sucesso.\"\n}"
+          },
+          "id": "wk3-resp-ok",
+          "name": "Confirmar Inicio",
+          "position": [
+            -32,
+            -192
+          ],
+          "type": "n8n-nodes-base.respondToWebhook",
+          "typeVersion": 1.5
+        },
+        {
+          "parameters": {
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "apikey",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Authorization",
+                  "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                }
+              ]
+            },
+            "options": {},
+            "sendHeaders": true,
+            "url": "https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?status_reativacao=eq.Pendente"
+          },
+          "id": "wk3-read-sheet",
+          "name": "Ler Leads Pendentes Supabase",
+          "position": [
+            -256,
+            -40
+          ],
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "onError": "continueRegularOutput"
+        },
+        {
+          "parameters": {
+            "jsCode": "const rows = $input.all();\nconst results = [];\n\nfor (const row of rows) {\n  const d = row.json;\n\n  const status = (d.status_reativacao || '').trim();\n  if (status !== 'Pendente') continue;\n\n  const nome = (d.nome_lead || '').trim();\n  let telefone = (d.telefone || '').toString().trim();\n  const id = d.id || '';\n\n  if (!nome || !telefone) continue;\n\n  telefone = telefone.replace(/\\D/g, '');\n\n  if (!telefone.startsWith('55')) {\n    if (telefone.length === 11) {\n      telefone = '55' + telefone;\n    } else if (telefone.length === 10) {\n      const ddd = telefone.substring(0, 2);\n      const num = telefone.substring(2);\n      telefone = '55' + ddd + '9' + num;\n    }\n  }\n\n  const primeiroNome = nome.split(' ')[0];\n  const leadIdCrm = (d.lead_id_cvcrm || '').toString();\n  const templateNome = (d.mensagem_enviada || '').toString().trim();\n  const observacao = (d.observacao_crm || '').toString().trim();\n  const tipoCampanha = (d.tipo_campanha || 'reativacao').toString().trim();\n  const idEmpreendimento = (d.empreendimento_id || '').toString().trim();\n\n  results.push({ json: { nome, primeiroNome, telefone, id, leadIdCrm, templateNome, observacao, tipoCampanha, idEmpreendimento } });\n}\n\nif (results.length === 0) {\n  return [{ json: { nenhum_pendente: true, total: 0 } }];\n}\n\nreturn results;"
+          },
+          "id": "wk3-validar-linha",
+          "name": "Validar e Normalizar Linha",
+          "position": [
+            -32,
+            8
+          ],
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "combinator": "and",
+              "conditions": [
+                {
+                  "id": "c1",
+                  "leftValue": "={{ $json.nenhum_pendente }}",
+                  "operator": {
+                    "operation": "true",
+                    "singleValue": true,
+                    "type": "boolean"
+                  },
+                  "rightValue": true
+                }
+              ],
+              "options": {
+                "caseSensitive": true,
+                "leftValue": "",
+                "typeValidation": "strict",
+                "version": 2
+              }
+            },
+            "options": {}
+          },
+          "id": "wk3-check-pendente",
+          "name": "Tem Leads Pendentes?",
+          "position": [
+            192,
+            -8
+          ],
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "onError": "continueErrorOutput"
+        },
+        {
+          "parameters": {
+            "jsCode": "return [{ json: { status: 'sem_leads', mensagem: 'Nenhum lead pendente no Supabase.' } }];"
+          },
+          "id": "wk3-sem-leads",
+          "name": "Sem Leads Pendentes (Log)",
+          "position": [
+            416,
+            -96
+          ],
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2
+        },
+        {
+          "parameters": {
+            "options": {}
+          },
+          "id": "wk3-split",
+          "name": "Processar 1 por Vez",
+          "position": [
+            416,
+            96
+          ],
+          "type": "n8n-nodes-base.splitInBatches",
+          "typeVersion": 3,
+          "onError": "continueErrorOutput"
+        },
+        {
+          "parameters": {
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "apikey",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Authorization",
+                  "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                }
+              ]
+            },
+            "options": {},
+            "sendHeaders": true,
+            "url": "=https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?telefone=in.({{ $json.telefone }},{{ $json.telefone.startsWith('55') ? $json.telefone.substring(2) : $json.telefone }})&status_reativacao=neq.Pendente&limit=1"
+          },
+          "alwaysOutputData": true,
+          "id": "wk3-check-supa",
+          "name": "Verificar Se Ja Enviado (Supabase)",
+          "position": [
+            640,
+            32
+          ],
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "onError": "continueRegularOutput"
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "combinator": "and",
+              "conditions": [
+                {
+                  "id": "c1",
+                  "leftValue": "={{ Array.isArray($json) ? $json.length : 0 }}",
+                  "operator": {
+                    "operation": "equals",
+                    "type": "number"
+                  },
+                  "rightValue": 0
+                }
+              ],
+              "options": {
+                "caseSensitive": true,
+                "leftValue": "",
+                "typeValidation": "strict",
+                "version": 2
+              }
+            },
+            "options": {}
+          },
+          "id": "wk3-check-novo",
+          "name": "Lead Ja Foi Enviado?",
+          "position": [
+            864,
+            16
+          ],
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "onError": "continueErrorOutput"
+        },
+        {
+          "parameters": {
+            "jsCode": "const d = $('Processar 1 por Vez').first().json;\nconst agoraObj = new Date();\nconst agora = agoraObj.toISOString();\nconst templateNome = (d.templateNome || '').trim();\n\n// Verificação de horário (America/Sao_Paulo)\nconst horaAtualSP = new Date(agoraObj.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));\nconst horas = horaAtualSP.getHours();\nconst minutos = horaAtualSP.getMinutes();\n\n// Trava de horário: Não enviar antes das 07:00 nem depois das 21:30\nif (horas > 21 || (horas === 21 && minutos >= 30) || horas < 7) {\n  return [{\n    json: {\n      templateValido: false,\n      nome: d.nome,\n      telefone: d.telefone,\n      id: d.id,\n      statusPlanilha: 'Pausado (Horário Excedido)'\n    }\n  }];\n}\n\nif (!templateNome) {\n  return [{\n    json: {\n      templateValido: false,\n      nome: d.nome,\n      telefone: d.telefone,\n      id: d.id,\n      statusPlanilha: 'Erro - Template vazio'\n    }\n  }];\n}\n\nconst primeiroNome = d.primeiroNome || d.nome.split(' ')[0];\nconst tipoCampanha = d.tipoCampanha || 'reativacao';\nconst idEmpreendimento = d.idEmpreendimento || '';\n\n// Setup basic template message\nconst templateMessage = {\n  name: templateNome,\n  language: 'pt_BR',\n  components: []\n};\n\n// Obter configuração dinâmica do template do Supabase\nconst templateResponse = $('Obter Template Supabase').first().json;\nconst templateData = Array.isArray(templateResponse) ? templateResponse[0] : templateResponse;\n\n// Se o template estiver cadastrado e explicitamente disser que NÃO tem variáveis,\n// temVariaveis será falso. Caso contrário (se não achar ou se estiver marcado true), assume true.\nconst temVariaveis = templateData ? (templateData.tem_variaveis !== false) : true;\n\nif (temVariaveis) {\n  templateMessage.components.push({\n    type: 'body',\n    parameters: [{ type: 'text', text: primeiroNome }]\n  });\n}\n\nreturn [{\n  json: {\n    templateValido: true,\n    nome: d.nome,\n    primeiroNome,\n    telefone: d.telefone,\n    id: d.id,\n    leadIdCrm: d.leadIdCrm || '',\n    templateNome,\n    tipoCampanha,\n    observacao: d.observacao || '',\n    idEmpreendimento,\n    statusPlanilha: 'Enviado',\n    evolutionPayload: {\n      number: d.telefone,\n      templateMessage: templateMessage\n    },\n    supabasePayload: {\n      lead_id_cvcrm: d.leadIdCrm || d.telefone,\n      telefone: d.telefone,\n      nome_lead: d.nome,\n      status_reativacao: 'Enviado',\n      tipo_campanha: tipoCampanha,\n      data_envio: agora,\n      corretor_id_cvcrm: null,\n      observacao_crm: d.observacao || null,\n      empreendimento_id: idEmpreendimento || null,\n      historico_mensagens: [{ remetente: 'TEMPLATE_WABA', template: templateNome, mensagem: 'Template: ' + templateNome, timestamp: agora }],\n      mensagem_enviada: 'Template: ' + templateNome + (temVariaveis ? ' | Param: ' + primeiroNome : '')\n    }\n  }\n}];"
+          },
+          "id": "wk3-prep-payload",
+          "name": "Preparar Payload WhatsApp",
+          "position": [
+            1088,
+            -64
+          ],
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "combinator": "and",
+              "conditions": [
+                {
+                  "id": "tpl",
+                  "leftValue": "={{ $json.templateValido }}",
+                  "operator": {
+                    "name": "filter.operator.equals",
+                    "operation": "equals",
+                    "type": "boolean"
+                  },
+                  "rightValue": true
+                }
+              ],
+              "options": {
+                "caseSensitive": true,
+                "leftValue": "",
+                "typeValidation": "strict",
+                "version": 1
+              }
+            },
+            "options": {}
+          },
+          "id": "wk3-if-template",
+          "name": "Template Valido?",
+          "position": [
+            1312,
+            -64
+          ],
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2
+        },
+        {
+          "parameters": {
+            "method": "POST",
+            "url": "http://72.60.244.51:8080/message/sendTemplate/sym-imoveis-oficial",
+            "sendHeaders": true,
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "apikey",
+                  "value": "keySYMIMOVEIS2026"
+                }
+              ]
+            },
+            "sendBody": true,
+            "specifyBody": "json",
+            "jsonBody": "={{ JSON.stringify($json.evolutionPayload) }}",
+            "options": {}
+          },
+          "id": "wk3-send-evo",
+          "name": "Enviar Template WhatsApp",
+          "position": [
+            1536,
+            -64
+          ],
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "onError": "continueRegularOutput"
+        },
+        {
+          "parameters": {
+            "amount": 40
+          },
+          "id": "wk3-wait",
+          "name": "Aguardar 45 Segundos",
+          "position": [
+            1984,
+            112
+          ],
+          "type": "n8n-nodes-base.wait",
+          "typeVersion": 1.1,
+          "webhookId": "46de8a42-4a26-4484-9ad3-d0b306e1faa1"
+        },
+        {
+          "parameters": {
+            "jsCode": "const d = $('Processar 1 por Vez').first().json;\nreturn [{ json: { pulado: true, telefone: d.telefone } }];"
+          },
+          "id": "wk3-pular-enviado",
+          "name": "Pular (Ja Enviado)",
+          "position": [
+            1760,
+            128
+          ],
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2
+        },
+        {
+          "parameters": {
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "apikey",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Authorization",
+                  "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "name": "Prefer",
+                  "value": "return=minimal"
+                }
+              ]
+            },
+            "jsonBody": "={{ { status_reativacao: $('Enviar Template WhatsApp').first().json.error ? 'Erro no Disparo' : 'Enviado', data_envio: new Date().toISOString(), mensagem_enviada: $('Enviar Template WhatsApp').first().json.error ? 'Falha: ' + ($('Enviar Template WhatsApp').first().json.error && $('Enviar Template WhatsApp').first().json.error.message ? $('Enviar Template WhatsApp').first().json.error.message : 'Erro Desconhecido') : $('Preparar Payload WhatsApp').first().json.supabasePayload.mensagem_enviada, historico_mensagens: $('Preparar Payload WhatsApp').first().json.supabasePayload.historico_mensagens } }}",
+            "method": "PATCH",
+            "options": {},
+            "sendBody": true,
+            "sendHeaders": true,
+            "specifyBody": "json",
+            "url": "=https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?id=eq.{{ $('Processar 1 por Vez').first().json.id }}"
+          },
+          "id": "wk3-update-sheet",
+          "name": "Atualizar Status no Supabase",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.4,
+          "position": [
+            1760,
+            -64
+          ],
+          "onError": "continueRegularOutput"
+        },
+        {
+          "id": "wk3-get-template",
+          "name": "Obter Template Supabase",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "position": [
+            -144,
+            -112
+          ],
+          "parameters": {
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "apikey",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Authorization",
+                  "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                }
+              ]
+            },
+            "sendHeaders": true,
+            "url": "=https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/templates_wpp?or=(id.eq.{{ $(\\\"Iniciar Disparo (Webhook)\\\").item.json.template_id }},nome.eq.{{ $(\\\"Iniciar Disparo (Webhook)\\\").item.json.template_id }})"
+          }
+        }
+      ],
+      "connections": {
+        "Aguardar 45 Segundos": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Processar 1 por Vez",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Lead Ja Foi Enviado?": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Preparar Payload WhatsApp",
+                "type": "main"
+              }
+            ],
+            [
+              {
+                "index": 0,
+                "node": "Pular (Ja Enviado)",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Ler Leads Pendentes Supabase": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Validar e Normalizar Linha",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Preparar Payload WhatsApp": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Template Valido?",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Pular (Ja Enviado)": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Aguardar 45 Segundos",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Tem Leads Pendentes?": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Sem Leads Pendentes (Log)",
+                "type": "main"
+              }
+            ],
+            [
+              {
+                "index": 0,
+                "node": "Processar 1 por Vez",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Template Valido?": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Enviar Template WhatsApp",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Validar e Normalizar Linha": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Tem Leads Pendentes?",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Verificar Se Ja Enviado (Supabase)": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Lead Ja Foi Enviado?",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Enviar Template WhatsApp": {
+          "main": [
+            [
+              {
+                "node": "Atualizar Status no Supabase",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Atualizar Status no Supabase": {
+          "main": [
+            [
+              {
+                "node": "Aguardar 45 Segundos",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Processar 1 por Vez": {
+          "main": [
+            [],
+            [
+              {
+                "node": "Verificar Se Ja Enviado (Supabase)",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Iniciar Disparo (Webhook)": {
+          "main": [
+            [
+              {
+                "node": "Confirmar Inicio",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Confirmar Inicio": {
+          "main": [
+            [
+              {
+                "node": "Obter Template Supabase",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Obter Template Supabase": {
+          "main": [
+            [
+              {
+                "node": "Ler Leads Pendentes Supabase",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      },
+      "authors": "Luan Tabaldi",
+      "name": null,
+      "description": null,
+      "autosaved": false,
+      "workflowPublishHistory": [
+        {
+          "createdAt": "2026-07-20T19:32:33.938Z",
+          "id": 861,
+          "workflowId": "nOqjQMPHjDRZM6WZ",
+          "versionId": "b9576aad-5a29-4b55-913f-7ab1e24675c2",
+          "event": "deactivated",
+          "userId": "2692e6d8-5c6b-4f11-8fe3-2e84c21f27ee"
+        },
+        {
+          "createdAt": "2026-07-20T19:32:33.960Z",
+          "id": 862,
+          "workflowId": "nOqjQMPHjDRZM6WZ",
+          "versionId": "b9576aad-5a29-4b55-913f-7ab1e24675c2",
+          "event": "activated",
+          "userId": "2692e6d8-5c6b-4f11-8fe3-2e84c21f27ee"
+        },
+        {
+          "createdAt": "2026-07-20T19:32:34.073Z",
+          "id": 863,
+          "workflowId": "nOqjQMPHjDRZM6WZ",
+          "versionId": "b9576aad-5a29-4b55-913f-7ab1e24675c2",
+          "event": "deactivated",
+          "userId": "2692e6d8-5c6b-4f11-8fe3-2e84c21f27ee"
+        },
+        {
+          "createdAt": "2026-07-20T19:32:34.100Z",
+          "id": 864,
+          "workflowId": "nOqjQMPHjDRZM6WZ",
+          "versionId": "b9576aad-5a29-4b55-913f-7ab1e24675c2",
+          "event": "activated",
+          "userId": "2692e6d8-5c6b-4f11-8fe3-2e84c21f27ee"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,42 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .typeface-row { display: flex; align-items: flex-end; gap: 32px; padding: 8px 0 16px; }
+  .glyph { font-family: "Google Sans Flex Display", "Google Sans Flex", sans-serif; font-weight: 500; font-size: 150px; line-height: 0.85; color: var(--ink-300); letter-spacing: -0.04em; }
+  .glyph .accent { color: var(--orange-600); }
+  .specimen { display: flex; flex-direction: column; gap: 6px; }
+  .specimen .meta { font: 700 11px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); }
+  .specimen .name { font-family: "Google Sans Flex", sans-serif; font-weight: 600; font-size: 28px; line-height: 1; color: var(--ink-300); letter-spacing: -0.02em; }
+  .weights { font-family: "Google Sans Flex", sans-serif; font-size: 16px; color: var(--ink-100); letter-spacing: -0.01em; }
+  .weights span { padding-right: 13px; display: inline-block; }
+  .w200 { font-weight: 200; }
+  .w300 { font-weight: 300; }
+  .w400 { font-weight: 400; }
+  .w500 { font-weight: 500; }
+  .w600 { font-weight: 600; }
+  .w700 { font-weight: 700; }
+  .w800 { font-weight: 800; }
+  .w900 { font-weight: 900; }
+</style></head>
+<body>
+<div class="card">
+  <div class="typeface-row">
+    <div class="glyph">G<span class="accent">g</span></div>
+    <div class="specimen">
+      <div class="meta">Sans · brand · 03</div>
+      <div class="name">Google Sans Flex</div>
+      <div class="weights">
+        <span class="w200">ExtraLight</span>
+        <span class="w300">Light</span>
+        <span class="w400">Regular</span>
+        <span class="w500">Medium</span>
+        <span class="w600">SemiBold</span>
+        <span class="w700">Bold</span>
+        <span class="w800">ExtraBold</span>
+        <span class="w900">Black</span>
+      </div>
+      <div style="font-family: var(--font-mono); font-size: 11px; color: var(--ink-50); letter-spacing: 0.04em; text-transform: uppercase; margin-top:8px;">Used for: Everything — body, numbers, labels, eyebrows, UI</div>
+    </div>
+  </div>
+</div>
+</body></html>

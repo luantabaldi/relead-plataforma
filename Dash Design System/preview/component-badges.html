@@ -1,0 +1,46 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .label-card { font: 700 11px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); margin-bottom: 10px; }
+  .title { font: 500 22px/1 var(--font-display); color: var(--ink-300); letter-spacing: -0.01em; margin-bottom: 16px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .chip { font: 700 9px/1 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; padding: 7px 12px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .ok   { background: #E6F1EA; color: #1F5C3C; }
+  .ok .dot { background: #2F8F5C; }
+  .warn { background: #F8EFD9; color: #7A5210; }
+  .warn .dot { background: #C58B2A; }
+  .err  { background: #F8E1DE; color: #7A1F18; }
+  .err .dot { background: #C73428; }
+  .info { background: #D6D9E7; color: #0D112A; }
+  .info .dot { background: #171E45; }
+  .neutral { background: var(--paper-100); color: var(--ink-100); border: 1px solid var(--paper-200); }
+  .neutral .dot { background: var(--ink-50); }
+  .tag { font: 400 11px/1 var(--font-mono); letter-spacing: -0.02em; padding: 6px 10px 6px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; background: var(--paper-100); color: var(--ink-100); border: 1px solid var(--paper-200); }
+  .tag .x { color: var(--ink-50); cursor: pointer; }
+  .row { display: flex; flex-direction: column; gap: 12px; }
+  .sub { font: 700 10px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); }
+</style></head>
+<body>
+<div class="card">
+  <div class="label-card">Components · 11</div>
+  <div class="title">Badges, status pills & tags</div>
+  <div class="row">
+    <div class="sub">Status</div>
+    <div class="grid">
+      <span class="chip ok"><span class="dot"></span>Completed</span>
+      <span class="chip warn"><span class="dot"></span>Pending</span>
+      <span class="chip err"><span class="dot"></span>Failed</span>
+      <span class="chip info"><span class="dot"></span>In progress</span>
+      <span class="chip neutral"><span class="dot"></span>Draft</span>
+    </div>
+    <div class="sub" style="margin-top:6px;">Filter tags</div>
+    <div class="grid">
+      <span class="tag">Team <span class="x">×</span></span>
+      <span class="tag">Insights <span class="x">×</span></span>
+      <span class="tag">Today <span class="x">×</span></span>
+      <span class="tag">USD <span class="x">×</span></span>
+    </div>
+  </div>
+</div>
+</body></html>

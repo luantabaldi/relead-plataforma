@@ -1,0 +1,339 @@
+/* ============================================================
+   Dash Design System — Colors & Type
+   ============================================================
+   A warm, editorial financial-analytics aesthetic.
+   Cormorant (serif display) × Google Sans Flex (sans, everything else)
+   on a clean cool-gray canvas with a single confident orange.
+   ============================================================ */
+
+/* ---------- FONT FACES ---------- */
+
+@font-face {
+  font-family: "Cormorant";
+  src: url("fonts/Cormorant-VariableFont_wght.ttf") format("truetype-variations");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Cormorant";
+  src: url("fonts/Cormorant-Italic-VariableFont_wght.ttf") format("truetype-variations");
+  font-weight: 300 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Google Sans Flex — brand sans. Uploaded as static optical-size cuts.
+   Text/UI tier uses the 24pt optical size; the display tier (large numerals,
+   big headings) uses the 72pt cut for correct optical proportions. */
+
+@font-face { font-family: "Google Sans Flex"; src: url("fonts/GoogleSansFlex_24pt-Thin.ttf")       format("truetype"); font-weight: 100; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex"; src: url("fonts/GoogleSansFlex_24pt-ExtraLight.ttf") format("truetype"); font-weight: 200; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex"; src: url("fonts/GoogleSansFlex_24pt-Light.ttf")      format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex"; src: url("fonts/GoogleSansFlex_24pt-Regular.ttf")    format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex"; src: url("fonts/GoogleSansFlex_24pt-Medium.ttf")     format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex"; src: url("fonts/GoogleSansFlex_24pt-SemiBold.ttf")   format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex"; src: url("fonts/GoogleSansFlex_24pt-Bold.ttf")       format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex"; src: url("fonts/GoogleSansFlex_24pt-ExtraBold.ttf")  format("truetype"); font-weight: 800; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex"; src: url("fonts/GoogleSansFlex_24pt-Black.ttf")      format("truetype"); font-weight: 900; font-style: normal; font-display: swap; }
+
+@font-face { font-family: "Google Sans Flex Display"; src: url("fonts/GoogleSansFlex_72pt-Light.ttf")    format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex Display"; src: url("fonts/GoogleSansFlex_72pt-Regular.ttf")  format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex Display"; src: url("fonts/GoogleSansFlex_72pt-Medium.ttf")   format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex Display"; src: url("fonts/GoogleSansFlex_72pt-SemiBold.ttf") format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex Display"; src: url("fonts/GoogleSansFlex_72pt-Bold.ttf")     format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ---------- DESIGN TOKENS ---------- */
+
+:root {
+  /* --- Brand ramp: a single deep navy.
+     Anchored at 600 (#171E45), the brand primary. --- */
+  --navy-50:  #EDEEF4;
+  --navy-100: #D6D9E7;
+  --navy-200: #AEB4CD;
+  --navy-300: #828BB0;
+  --navy-400: #525C8E;
+  --navy-500: #2C3568;   /* mid — charts, hover lift */
+  --navy-600: #171E45;   /* primary CTAs — the brand color */
+  --navy-700: #121839;
+  --navy-800: #0D112A;
+  --navy-900: #070A1A;
+
+  /* Back-compat aliases: legacy --orange-* tokens now resolve to navy,
+     so existing component references stay valid. */
+  --orange-50:  var(--navy-50);
+  --orange-100: var(--navy-100);
+  --orange-200: var(--navy-200);
+  --orange-300: var(--navy-300);
+  --orange-400: var(--navy-400);
+  --orange-500: var(--navy-500);
+  --orange-600: var(--navy-600);
+  --orange-700: var(--navy-700);
+  --orange-800: var(--navy-800);
+  --orange-900: var(--navy-900);
+
+  /* --- Cool gray neutrals: crisp, screen-native.
+     A slight blue undertone across the ramp. --- */
+  --paper-0:   #FFFFFF;
+  --paper-50:  #F7F8FA;    /* page bg */
+  --paper-100: #EEF0F4;    /* surface tint */
+  --paper-200: #E1E5EB;    /* hairline borders, hover */
+  --paper-300: #CBD1DA;    /* dividers, chart grid */
+  --paper-400: #98A0AD;
+  --paper-500: #6B727E;
+
+  /* --- Ink: warm-black with neutrals.
+     Paired against paper, not against pure white. --- */
+  --ink-50:  #6E665A;      /* fg-muted */
+  --ink-100: #4D463C;      /* fg-secondary */
+  --ink-200: #2E2A23;      /* fg-primary on paper */
+  --ink-300: #1A1611;      /* near-black, headlines */
+  --ink-400: #0E0C09;      /* deepest, dark surfaces */
+
+  /* --- Semantic accents (sparingly used) --- */
+  --green-500: #2F8F5C;
+  --green-50:  #E6F1EA;
+  --amber-500: #C58B2A;
+  --amber-50:  #F8EFD9;
+  --red-500:   #C73428;
+  --red-50:    #F8E1DE;
+
+  /* ============================================================
+     SEMANTIC ROLES — always reference these in components.
+     ============================================================ */
+
+  /* Backgrounds */
+  --bg-page:        var(--paper-50);
+  --bg-surface:     var(--paper-0);
+  --bg-sunken:      var(--paper-100);
+  --bg-inverse:     var(--ink-300);
+  --bg-accent:      var(--orange-600);
+  --bg-accent-soft: var(--orange-50);
+
+  /* Foreground / text */
+  --fg-primary:     var(--ink-200);
+  --fg-secondary:   var(--ink-100);
+  --fg-muted:       var(--ink-50);
+  --fg-inverse:     var(--paper-50);
+  --fg-accent:      var(--orange-600);
+  --fg-on-accent:   var(--paper-50);
+
+  /* Borders */
+  --border-hairline: var(--paper-200);
+  --border-default:  var(--paper-300);
+  --border-strong:   var(--ink-200);
+  --border-accent:   var(--orange-600);
+
+  /* Focus ring */
+  --focus-ring: 0 0 0 3px color-mix(in oklch, var(--navy-600) 35%, transparent);
+
+  /* ---------- TYPE ---------- */
+
+  --font-display: "Cormorant", "Cormorant Garamond", Georgia, serif;
+  /* --font-mono retained as a token name for the label/eyebrow/code tier,
+     but it now points at Google Sans Flex — Space Mono was retired. */
+  --font-mono:    "Google Sans Flex", "Inter", -apple-system, system-ui, sans-serif;
+  --font-body:    "Google Sans Flex", "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-sans:    "Google Sans Flex", "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-sans-display: "Google Sans Flex Display", "Google Sans Flex", "Inter", system-ui, sans-serif;
+
+  /* Type scale — modest scale, big display tier */
+  --fs-xs:    11px;
+  --fs-sm:    12px;
+  --fs-base:  14px;
+  --fs-md:    16px;
+  --fs-lg:    20px;
+  --fs-xl:    28px;
+  --fs-2xl:   40px;
+  --fs-3xl:   56px;
+  --fs-4xl:   84px;
+
+  --lh-tight:  1.05;
+  --lh-snug:   1.2;
+  --lh-normal: 1.45;
+  --lh-loose:  1.6;
+
+  --ls-tight:  -0.02em;
+  --ls-snug:   -0.01em;
+  --ls-normal: 0;
+  --ls-wide:   0.04em;
+  --ls-mono:   -0.01em;   /* label/eyebrow tracking */
+
+  /* ---------- SPACING ---------- */
+  /* 4px base unit. */
+  --space-0:  0;
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  /* ---------- RADII ---------- */
+  /* md (12px) is the primary radius — cards, inputs, most surfaces.
+     Pills are fully round; large containers step up modestly. */
+  --radius-xs:   4px;
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-xl:   20px;
+  --radius-2xl:  24px;
+  --radius-full: 999px;
+
+  /* ---------- SHADOWS ---------- */
+  /* Soft, warm-tinted; no hard drop shadows. */
+  --shadow-xs: 0 1px 2px rgba(64, 38, 14, 0.04);
+  --shadow-sm: 0 2px 6px rgba(64, 38, 14, 0.05), 0 1px 2px rgba(64, 38, 14, 0.04);
+  --shadow-md: 0 8px 24px rgba(64, 38, 14, 0.07), 0 2px 6px rgba(64, 38, 14, 0.05);
+  --shadow-lg: 0 24px 48px rgba(64, 38, 14, 0.10), 0 4px 12px rgba(64, 38, 14, 0.06);
+  --shadow-accent: 0 8px 24px rgba(23, 30, 69, 0.28);
+
+  /* ---------- MOTION ---------- */
+  --ease-out:  cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in:   cubic-bezier(0.55, 0, 0.65, 0.18);
+  --ease-snap: cubic-bezier(0.4, 0, 0.1, 1);
+  --dur-fast:  120ms;
+  --dur-base:  200ms;
+  --dur-slow:  360ms;
+}
+
+/* ============================================================
+   SEMANTIC TYPE CLASSES
+   Apply on top of element tags; never bake font sizes into
+   components ad hoc.
+   ============================================================ */
+
+.type-display-1 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-4xl);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  color: var(--ink-300);
+}
+.type-display-2 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-3xl);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  color: var(--ink-300);
+}
+.type-h1 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-2xl);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--ls-snug);
+  color: var(--ink-300);
+}
+.type-h2 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-xl);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--ls-snug);
+  color: var(--ink-300);
+}
+.type-h3 {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: var(--fs-md);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--ls-mono);
+  color: var(--ink-200);
+}
+.type-body {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+  letter-spacing: var(--ls-mono);
+  color: var(--ink-200);
+}
+.type-body-sm {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  letter-spacing: var(--ls-mono);
+  color: var(--ink-100);
+}
+.type-label {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: var(--fs-xs);
+  line-height: 1;
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+  color: var(--ink-50);
+}
+.type-data {
+  /* For numeric values — tabular figures */
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-feature-settings: "tnum" 1, "zero" 1;
+  letter-spacing: var(--ls-mono);
+  color: var(--ink-300);
+}
+.type-quote {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-style: italic;
+  font-size: var(--fs-2xl);
+  line-height: var(--lh-snug);
+  color: var(--ink-300);
+}
+.type-caption {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
+  letter-spacing: var(--ls-wide);
+  color: var(--ink-50);
+}
+
+/* ============================================================
+   BASE ELEMENT BINDINGS
+   So raw HTML inherits sane defaults.
+   ============================================================ */
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--fs-base);
+  line-height: var(--lh-normal);
+  letter-spacing: var(--ls-mono);
+  color: var(--fg-primary);
+  background: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1 { font: 500 var(--fs-2xl)/var(--lh-snug) var(--font-display); letter-spacing: var(--ls-snug); color: var(--ink-300); }
+h2 { font: 500 var(--fs-xl)/var(--lh-snug) var(--font-display); letter-spacing: var(--ls-snug); color: var(--ink-300); }
+h3 { font: 700 var(--fs-md)/var(--lh-snug) var(--font-mono); letter-spacing: var(--ls-mono); color: var(--ink-200); }
+h4 { font: 700 var(--fs-sm)/var(--lh-snug) var(--font-mono); letter-spacing: var(--ls-wide); text-transform: uppercase; color: var(--ink-100); }
+
+code, kbd, samp {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: var(--paper-100);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  color: var(--orange-700);
+}
+
+a {
+  color: var(--fg-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+a:hover { text-decoration-thickness: 2px; }

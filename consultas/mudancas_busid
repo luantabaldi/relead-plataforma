@@ -1,0 +1,149 @@
+# Impacto do BUSID (Business-Scoped User ID) da Meta — Sym Imóveis
+
+Análise de impacto da mudança de identificação de usuários na API do WhatsApp Business (Meta).
+Data da análise: 15/05/2026
+
+---
+
+## 1. O que é o BUSID?
+
+Antigamente, quando uma pessoa mandava mensagem para sua empresa, você recebia o número de telefone dela
+(ex: `5541999999999`). A Meta passou a gerar um ID exclusivo para cada relação entre um usuário e uma
+conta de negócios (WABA).
+
+- **Identificador Único por WABA:** O João que manda mensagem para a "Loja A" tem o ID `123`. Se o
+  mesmo João mandar para a "Loja B", o ID dele será `456`.
+- **Privacidade:** O número de telefone fica "escondido" atrás desse ID nas APIs, a menos que você
+  tenha permissão explícita ou o usuário o forneça.
+- **Uniformização:** Facilita a gestão de mensagens do Facebook, Instagram e WhatsApp em um só lugar.
+
+---
+
+## 2. O que quebra imediatamente no sistema atual
+
+### 2.1. Nó `Roteador Meta` (Workflow 2 — Atendimento IA)
+
+O código atual faz:
+
+```javascript
+// COMPORTAMENTO ATUAL (vai quebrar com BUSID):
+let telefone = message.from; // Hoje retorna "5541999..."
+
+// Normalização do 9º dígito sobre esse valor
+if (telefone.startsWith('55') && telefone.length === 12) {
+  const ddd = telefone.substring(2, 4);
+  const numero = telefone.substring(4);
+  telefone = '55' + ddd + '9' + numero;
+}
+```
+
+Com BUSID, `message.from` retorna um ID opaco (ex: `"91854241547"`). A normalização de DDD e
+9º dígito produz um número inválido e todas as queries subsequentes falham em silêncio —
+não encontram o lead no Supabase.
+
+---
+
+### 2.2. Todas as queries por telefone no Supabase (Workflow 2)
+
+| Nó | Query Afetada | Impacto |
+| :--- | :--- | :--- |
+| `Verificar Se Ja Enviado` | `?telefone=eq.{{ $json.telefone }}` | Retorna 0 resultados |
+| `Atualizar Status Lead` | `?telefone=eq.{{ $json.telefone }}` | Não atualiza nada |
+| `Buscar Lead Supabase` | `?telefone=eq.{{ $json.telefone }}` | Lead não é encontrado |
+| `Marcar Reativado` | `?telefone=eq.{{ $json.telefone }}` | Não marca o status |
+
+---
+
+### 2.3. Tabela `conversas_ia` — Chave Única por Telefone
+
+A coluna `telefone` é `UNIQUE`. Com BUSID, cada resposta de um mesmo lead criaria um registro novo
+com um ID diferente, quebrando o histórico de conversa da IA e duplicando dados.
+
+---
+
+## 3. O que NÃO quebra
+
+| Componente | Motivo |
+| :--- | :--- |
+| **Disparo Manual (Workflow 3)** | Lê telefone da planilha → envia via Evolution API. Outbound não usa `message.from`. |
+| **Prospecção Ativa (Workflow 1)** | Parte do CRM, não do Webhook da Meta. |
+| **CRM (CV CRM)** | Usa telefone cadastrado no banco, não o Webhook. |
+
+---
+
+## 4. Ponto Crítico: Uso da Evolution API
+
+> **ATENÇÃO:** O sistema usa a **Evolution API** como intermediária, e não a Meta Cloud API
+> diretamente. A Evolution API pode abstrair o BUSID e continuar entregando o telefone,
+> dependendo da versão e configuração do servidor.
+
+### Diagnóstico Obrigatório (fazer antes de qualquer mudança)
+
+1. Enviar uma mensagem de teste para o número `wpp-n8n` de um celular qualquer.
+2. Abrir a execução no n8n → nó `Roteador Meta`.
+3. Verificar o valor de `message.from` no output.
+
+**Se vier `5541999...` → Evolution API ainda protege. Nada precisa mudar agora.**
+**Se vier um ID sem formato de telefone → implementar adaptação urgente (ver Seção 5).**
+
+---
+
+## 5. Como Adaptar o Sistema (quando necessário)
+
+### 5.1. Correção no Nó `Roteador Meta` — Extrair telefone de `contacts`
+
+A Meta ainda envia o telefone no payload, mas no campo `contacts[0].wa_id`:
+
+```javascript
+// SOLUÇÃO:
+const busid = message.from; // guardar o BUSID para futuro uso
+const telefone = value.contacts?.[0]?.wa_id || message.from; // wa_id ainda contém o telefone
+
+// Manter a normalização do 9º dígito aplicada ao telefone, não ao busid
+if (telefone.startsWith('55') && telefone.length === 12) {
+  const ddd = telefone.substring(2, 4);
+  const numero = telefone.substring(4);
+  telefone = '55' + ddd + '9' + numero;
+}
+```
+
+---
+
+### 5.2. Adicionar Coluna `busid` no Supabase
+
+```sql
+-- Adicionar suporte ao BUSID sem remover o campo de telefone
+ALTER TABLE public.leads_reativacao ADD COLUMN busid VARCHAR(100);
+ALTER TABLE public.conversas_ia      ADD COLUMN busid VARCHAR(100);
+
+-- Criar índice para busca por BUSID
+CREATE INDEX idx_leads_busid    ON public.leads_reativacao(busid);
+CREATE INDEX idx_conversas_busid ON public.conversas_ia(busid);
+```
+
+---
+
+### 5.3. Lógica de Mapeamento no `Preparar Contexto`
+
+Usar `busid` para buscas em tempo real (respostas do Webhook) e `telefone` para outbound (disparos).
+
+```javascript
+// Buscar por busid primeiro, fallback por telefone
+const busid = ctx.busid || null;
+const telefone = ctx.telefone;
+
+const queryUrl = busid
+  ? `?busid=eq.${busid}&limit=1`
+  : `?telefone=eq.${telefone}&order=data_envio.desc&limit=1`;
+```
+
+---
+
+## 6. Resumo de Prioridades
+
+| Prioridade | Ação | Impacto se Ignorada |
+| :--- | :--- | :--- |
+| **URGENTE** | Executar diagnóstico (item 4) | Não saber se o sistema está em risco |
+| **ALTA** | Corrigir extração de telefone (item 5.1) | Quebra total do atendimento IA |
+| **MÉDIA** | Adicionar coluna `busid` no Supabase (item 5.2) | Falta de rastreabilidade futura |
+| **BAIXA** | Atualizar lógica de mapeamento (item 5.3) | Inconsistência em edge cases |

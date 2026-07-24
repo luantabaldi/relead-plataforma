@@ -1,0 +1,7 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* Dash Design System — tokens, fonts, component classes.
+   Imported after Tailwind so brand base styles win. */
+@import './styles/dash.css';

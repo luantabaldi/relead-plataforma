@@ -1,0 +1,28 @@
+/* Preview card shared styles — used by every card in preview/.
+   Cards are ~700px wide; the asset name renders OUTSIDE the card,
+   so we just present content cleanly. */
+
+@import url("../colors_and_type.css");
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper-50);
+  color: var(--fg-primary);
+}
+
+.card {
+  box-sizing: border-box;
+  width: 700px;
+  padding: 24px 28px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-hairline);
+  border-radius: 0; /* host frames; no double-round */
+}
+
+.row { display: flex; gap: 12px; align-items: center; }
+.col { display: flex; flex-direction: column; gap: 12px; }
+
+.label { font: 700 11px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-muted); }
+.mono  { font-family: var(--font-mono); }
+.disp  { font-family: var(--font-display); }

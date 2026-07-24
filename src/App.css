@@ -1,0 +1,38 @@
+/* App shell layout. Brand tokens live in src/styles/dash.css. */
+
+.App {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Scrollbar — warm paper tones */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--paper-300); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--paper-400); }
+
+/* Entrance for chat bubbles / list items */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.message { animation: slideIn 0.28s var(--ease-out); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.loading { animation: pulse 1.6s infinite; }
+
+/* Focus — single orange ring, brand-consistent */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message, .loading { animation: none; }
+}

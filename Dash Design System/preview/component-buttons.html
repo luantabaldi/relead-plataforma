@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .grid { display: grid; grid-template-columns: 90px repeat(3, 1fr); column-gap: 16px; row-gap: 16px; align-items: center; }
+  .state { font: 700 10px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); }
+  .btn { font: 700 13px/1 var(--font-mono); letter-spacing: -0.02em; padding: 12px 22px; border-radius: 999px; border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 160ms; }
+  .primary { background: var(--orange-600); color: #FBF8F3; }
+  .primary.hover { background: var(--orange-700); box-shadow: 0 8px 24px rgba(23, 30, 69, 0.22); }
+  .primary.disabled { background: var(--paper-200); color: var(--paper-400); cursor: not-allowed; }
+  .secondary { background: var(--paper-0); color: var(--ink-200); border-color: var(--paper-300); }
+  .secondary.hover { background: var(--paper-100); border-color: var(--ink-200); }
+  .secondary.disabled { color: var(--paper-400); border-color: var(--paper-200); }
+  .ghost { background: transparent; color: var(--ink-200); }
+  .ghost.hover { background: var(--paper-100); }
+  .ghost.disabled { color: var(--paper-400); }
+  .label { font: 700 11px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); margin-bottom: 10px; }
+  .title { font: 500 22px/1 var(--font-display); color: var(--ink-300); letter-spacing: -0.01em; margin-bottom: 16px; }
+</style></head>
+<body>
+<div class="card">
+  <div class="label">Components · 08</div>
+  <div class="title">Buttons — pill-shaped, three tiers</div>
+  <div class="grid">
+    <div class="state">Default</div>
+      <div><button class="btn primary">Transfer →</button></div>
+      <div><button class="btn secondary">Request</button></div>
+      <div><button class="btn ghost">Cancel</button></div>
+    <div class="state">Hover</div>
+      <div><button class="btn primary hover">Transfer →</button></div>
+      <div><button class="btn secondary hover">Request</button></div>
+      <div><button class="btn ghost hover">Cancel</button></div>
+    <div class="state">Disabled</div>
+      <div><button class="btn primary disabled">Transfer →</button></div>
+      <div><button class="btn secondary disabled">Request</button></div>
+      <div><button class="btn ghost disabled">Cancel</button></div>
+  </div>
+</div>
+</body></html>

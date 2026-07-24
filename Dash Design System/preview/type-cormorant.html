@@ -1,0 +1,36 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .typeface-row { display: flex; align-items: flex-end; gap: 32px; padding: 8px 0 16px; }
+  .glyph { font-family: var(--font-display); font-weight: 500; font-size: 160px; line-height: 0.85; color: var(--ink-300); letter-spacing: -0.04em; }
+  .glyph .it { font-style: italic; color: var(--orange-600); }
+  .specimen { display: flex; flex-direction: column; gap: 6px; }
+  .specimen .meta { font: 700 11px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); }
+  .specimen .name { font-family: var(--font-display); font-weight: 500; font-size: 28px; line-height: 1; color: var(--ink-300); letter-spacing: -0.01em; }
+  .weights { font-family: var(--font-display); font-size: 18px; color: var(--ink-100); }
+  .weights span { padding-right: 14px; }
+  .weights .w400 { font-weight: 400; }
+  .weights .w500 { font-weight: 500; }
+  .weights .w600 { font-weight: 600; }
+  .weights .w700 { font-weight: 700; }
+  .weights .it { font-style: italic; color: var(--orange-700); }
+</style></head>
+<body>
+<div class="card">
+  <div class="typeface-row">
+    <div class="glyph">A<span class="it">a</span></div>
+    <div class="specimen">
+      <div class="meta">Display · 01</div>
+      <div class="name">Cormorant</div>
+      <div class="weights">
+        <span class="w400">Regular</span>
+        <span class="w500">Medium</span>
+        <span class="w600">Semibold</span>
+        <span class="w700">Bold</span>
+        <span class="w500 it">Italic</span>
+      </div>
+      <div style="font-family: var(--font-mono); font-size: 11px; color: var(--ink-50); letter-spacing: 0.04em; text-transform: uppercase; margin-top:8px;">Used for: H1–H3, hero, pull quotes</div>
+    </div>
+  </div>
+</div>
+</body></html>

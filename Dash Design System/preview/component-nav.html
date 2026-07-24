@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .label-card { font: 700 11px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); margin-bottom: 10px; }
+  .title { font: 500 22px/1 var(--font-display); color: var(--ink-300); letter-spacing: -0.01em; margin-bottom: 14px; }
+  .nav { background: var(--paper-0); border: 1px solid var(--paper-200); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 4px; max-width: 260px;}
+  .eyebrow { font: 700 10px/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-50); padding: 10px 12px 6px; }
+  .item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; font: 400 13px/1 var(--font-mono); letter-spacing: -0.02em; color: var(--ink-100); cursor: pointer; }
+  .item .ic { width: 16px; height: 16px; color: var(--ink-100); }
+  .item:hover { background: var(--paper-100); }
+  .item.active { background: var(--ink-300); color: var(--paper-50); position: relative; }
+  .item.active .ic { color: var(--paper-50); }
+  .item.active .dot { width: 6px; height: 6px; background: var(--orange-500); border-radius: 50%; margin-left: auto; }
+  .demo { display: flex; gap: 16px; }
+  .ann { display: flex; flex-direction: column; gap: 6px; font: 400 11px/1.4 var(--font-mono); letter-spacing: -0.02em; color: var(--ink-50); }
+  .ann b { color: var(--ink-200); font-weight: 700; }
+</style></head>
+<body>
+<div class="card">
+  <div class="label-card">Components · 12</div>
+  <div class="title">Sidebar nav items</div>
+  <div class="demo">
+    <div class="nav">
+      <div class="eyebrow">Home</div>
+      <div class="item active">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Overview <span class="dot"></span>
+      </div>
+      <div class="item">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Legalcy statement
+      </div>
+      <div class="item">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        Financial projection
+      </div>
+      <div class="item">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+        Account
+      </div>
+    </div>
+    <div class="ann">
+      <div><b>Default</b> · ink-100, no fill</div>
+      <div><b>Hover</b> · paper-100 fill</div>
+      <div><b>Active</b> · ink-300 fill, paper text, orange dot indicator</div>
+      <div><b>Section label</b> · eyebrow style above each group</div>
+    </div>
+  </div>
+</div>
+</body></html>

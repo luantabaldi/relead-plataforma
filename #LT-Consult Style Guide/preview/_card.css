@@ -1,0 +1,29 @@
+/* preview/_card.css — shared card chrome */
+@import url("../colors_and_type.css");
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--fg1);
+  font-family: var(--font-sans);
+  width: 100%;
+  min-height: 100%;
+  overflow: hidden;
+}
+
+.card {
+  width: 700px;
+  background: var(--bg-elev);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card.compact { padding: 20px; gap: 12px; }
+
+.row { display: flex; gap: 12px; align-items: stretch; }
+.row-tight { display: flex; gap: 8px; align-items: stretch; }
+.col { display: flex; flex-direction: column; gap: 8px; }
+.grid { display: grid; gap: 12px; }

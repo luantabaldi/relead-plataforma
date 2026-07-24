@@ -1,0 +1,65 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .label-card { font: 700 11px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); margin-bottom: 10px; }
+  .title { font: 500 22px/1 var(--font-display); color: var(--ink-300); letter-spacing: -0.01em; margin-bottom: 16px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .chart-card { background: var(--paper-0); border: 1px solid var(--paper-200); border-radius: 12px; padding: 18px; }
+  .h { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .h .t { font: 700 11px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); }
+  .h .v { font-family: "Google Sans Flex Display", "Google Sans Flex", sans-serif; font-weight: 600; font-size: 24px; line-height: 1; color: var(--ink-300); letter-spacing: -0.025em; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .h .pill { font: 400 11px/1 var(--font-mono); color: var(--ink-100); border: 1px solid var(--paper-300); padding: 6px 10px; border-radius: 999px;}
+  /* Bar chart */
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 60px; }
+  .bars div { flex: 1; border-radius: 3px 3px 0 0; background: var(--orange-500); }
+  .bars .alt { background: var(--paper-300); }
+  /* Sparkline */
+  svg.spark { display: block; width: 100%; height: 60px; }
+</style></head>
+<body>
+<div class="card">
+  <div class="label-card">Components · 14</div>
+  <div class="title">Chart fragments</div>
+  <div class="row">
+    <div class="chart-card">
+      <div class="h">
+        <div>
+          <div class="t">Total income</div>
+          <div class="v">$12,135.00</div>
+        </div>
+        <div class="pill">Weekly</div>
+      </div>
+      <div class="bars">
+        <div style="height: 30%"></div>
+        <div class="alt" style="height: 20%"></div>
+        <div style="height: 70%"></div>
+        <div style="height: 90%"></div>
+        <div class="alt" style="height: 45%"></div>
+        <div style="height: 65%"></div>
+        <div style="height: 80%"></div>
+        <div class="alt" style="height: 40%"></div>
+        <div class="alt" style="height: 25%"></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="h">
+        <div>
+          <div class="t">Receipts</div>
+          <div class="v">120,560.00</div>
+        </div>
+        <div class="pill" style="color: var(--green-500); border-color: var(--green-50); background: var(--green-50);">↑ 11.5%</div>
+      </div>
+      <svg class="spark" viewBox="0 0 200 60" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#2C3568" stop-opacity="0.25"/>
+            <stop offset="100%" stop-color="#2C3568" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M0,40 L20,30 L40,42 L60,20 L80,28 L100,12 L120,30 L140,18 L160,32 L180,22 L200,30 L200,60 L0,60 Z" fill="url(#grad)"/>
+        <path d="M0,40 L20,30 L40,42 L60,20 L80,28 L100,12 L120,30 L140,18 L160,32 L180,22 L200,30" fill="none" stroke="#2C3568" stroke-width="1.5"/>
+      </svg>
+    </div>
+  </div>
+</div>
+</body></html>

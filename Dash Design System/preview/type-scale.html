@@ -1,0 +1,26 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .scale { display: grid; grid-template-columns: 90px 1fr 80px; row-gap: 14px; column-gap: 16px; align-items: baseline; }
+  .tier { font-family: var(--font-mono); font-size: 10px; color: var(--ink-50); letter-spacing: 0.06em; text-transform: uppercase; }
+  .px { font-family: var(--font-mono); font-size: 10px; color: var(--ink-50); letter-spacing: 0.04em; text-align: right; }
+  .ex.d1 { font: 500 64px/0.95 var(--font-display); color: var(--ink-300); letter-spacing: -0.02em; }
+  .ex.d2 { font: 500 44px/0.95 var(--font-display); color: var(--ink-300); letter-spacing: -0.02em; }
+  .ex.h1 { font: 500 32px/1.1 var(--font-display); color: var(--ink-300); letter-spacing: -0.01em; }
+  .ex.h2 { font: 500 22px/1.1 var(--font-display); color: var(--ink-300); letter-spacing: -0.01em; }
+  .ex.h3 { font: 700 16px/1.1 var(--font-mono); color: var(--ink-200); letter-spacing: -0.02em; }
+  .ex.data { font-family: "Google Sans Flex Display", "Google Sans Flex", sans-serif; font-weight: 600; font-size: 28px; line-height: 1; color: var(--ink-300); letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
+  .ex.body { font: 400 14px/1.45 var(--font-mono); color: var(--ink-200); letter-spacing: -0.02em; }
+</style></head>
+<body>
+<div class="card">
+  <div class="scale">
+    <div class="tier">Display</div><div class="ex d1">Welcome back</div><div class="px">84 / 92</div>
+    <div class="tier">H1</div>      <div class="ex h1">Financial overview</div><div class="px">40 / 48</div>
+    <div class="tier">H2</div>      <div class="ex h2">Recent activity</div><div class="px">28 / 34</div>
+    <div class="tier">H3 · mono</div><div class="ex h3">TOTAL EARNINGS</div><div class="px">16 / 19</div>
+    <div class="tier">Data · sans</div><div class="ex data">$23,194.80</div><div class="px">28 / 28</div>
+    <div class="tier">Body</div>    <div class="ex body">Stay on top of your tasks, monitor progress, and track status.</div><div class="px">14 / 20</div>
+  </div>
+</div>
+</body></html>

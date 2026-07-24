@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .ramp { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; }
+  .sw { aspect-ratio: 1 / 1.1; border-radius: 12px; display: flex; flex-direction: column; justify-content: flex-end; padding: 10px; font-family: var(--font-mono); font-size: 10px; letter-spacing: -0.02em; }
+  .sw .n { font-weight: 700; font-size: 12px; }
+  .sw .h { opacity: 0.7; font-size: 10px; }
+  .label { font: 700 11px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); margin-bottom: 10px; }
+  .name { font: 500 22px/1 var(--font-display); color: var(--ink-300); letter-spacing: -0.01em; margin-bottom: 14px; }
+</style></head>
+<body>
+<div class="card">
+  <div class="label">Brand · 01</div>
+  <div class="name">Navy — the brand primary</div>
+  <div class="ramp">
+    <div class="sw" style="background:#EDEEF4; color:#0D112A;"><div class="n">50</div><div class="h">EDEEF4</div></div>
+    <div class="sw" style="background:#D6D9E7; color:#0D112A;"><div class="n">100</div><div class="h">D6D9E7</div></div>
+    <div class="sw" style="background:#AEB4CD; color:#070A1A;"><div class="n">200</div><div class="h">AEB4CD</div></div>
+    <div class="sw" style="background:#828BB0; color:#070A1A;"><div class="n">300</div><div class="h">828BB0</div></div>
+    <div class="sw" style="background:#525C8E; color:#EDEEF4;"><div class="n">400</div><div class="h">525C8E</div></div>
+    <div class="sw" style="background:#2C3568; color:#EDEEF4;"><div class="n">500</div><div class="h">2C3568</div></div>
+    <div class="sw" style="background:#171E45; color:#EDEEF4; outline: 2px solid var(--ink-300); outline-offset: -2px;"><div class="n">600 ★</div><div class="h">171E45</div></div>
+    <div class="sw" style="background:#121839; color:#D6D9E7;"><div class="n">700</div><div class="h">121839</div></div>
+    <div class="sw" style="background:#0D112A; color:#AEB4CD;"><div class="n">800</div><div class="h">0D112A</div></div>
+    <div class="sw" style="background:#070A1A; color:#828BB0;"><div class="n">900</div><div class="h">070A1A</div></div>
+  </div>
+  <div style="font-family: var(--font-mono); font-size: 11px; color: var(--ink-50); letter-spacing: -0.02em; margin-top: 14px;">★ 600 = <b style="color:#171E45">#171E45</b> primary CTA · 500 = chart fill · 300 = accents on dark</div>
+</div>
+</body></html>

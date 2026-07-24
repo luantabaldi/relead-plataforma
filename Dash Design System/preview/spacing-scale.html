@@ -1,0 +1,27 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .grid { display: grid; grid-template-columns: 70px 1fr 90px; row-gap: 10px; align-items: center; }
+  .tk { font: 700 12px/1 var(--font-mono); color: var(--ink-200); letter-spacing: -0.02em; }
+  .bar { height: 12px; background: var(--orange-600); border-radius: 2px; }
+  .px { font: 400 11px/1 var(--font-mono); color: var(--ink-50); letter-spacing: -0.02em; text-align: right; }
+  .label { font: 700 11px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); margin-bottom: 10px; }
+  .name { font: 500 22px/1 var(--font-display); color: var(--ink-300); letter-spacing: -0.01em; margin-bottom: 16px; }
+</style></head>
+<body>
+<div class="card">
+  <div class="label">Tokens · 05</div>
+  <div class="name">Spacing — 4px base</div>
+  <div class="grid">
+    <div class="tk">space-1</div><div><div class="bar" style="width: 4px"></div></div><div class="px">4 px</div>
+    <div class="tk">space-2</div><div><div class="bar" style="width: 8px"></div></div><div class="px">8 px</div>
+    <div class="tk">space-3</div><div><div class="bar" style="width: 12px"></div></div><div class="px">12 px</div>
+    <div class="tk">space-4</div><div><div class="bar" style="width: 16px"></div></div><div class="px">16 px</div>
+    <div class="tk">space-6</div><div><div class="bar" style="width: 24px"></div></div><div class="px">24 px ★</div>
+    <div class="tk">space-8</div><div><div class="bar" style="width: 32px"></div></div><div class="px">32 px</div>
+    <div class="tk">space-12</div><div><div class="bar" style="width: 48px"></div></div><div class="px">48 px ★</div>
+    <div class="tk">space-16</div><div><div class="bar" style="width: 64px"></div></div><div class="px">64 px</div>
+  </div>
+  <div style="font-family: var(--font-mono); font-size: 11px; color: var(--ink-50); letter-spacing: -0.02em; margin-top: 14px;">★ 24px = card padding · 48px = page gutters</div>
+</div>
+</body></html>

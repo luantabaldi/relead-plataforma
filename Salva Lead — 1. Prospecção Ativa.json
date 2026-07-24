@@ -1,0 +1,484 @@
+{
+  "name": "Salva Lead — 1. Prospecção Ativa",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 12 * * *"
+            }
+          ]
+        }
+      },
+      "id": "trigger-cron",
+      "name": "Schedule Diario 09h",
+      "position": [
+        0,
+        304
+      ],
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2
+    },
+    {
+      "parameters": {
+        "url": "https://sym.cvcrm.com.br/api/v1/comercial/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "idsituacao",
+              "value": "3"
+            },
+            {
+              "name": "ativo",
+              "value": "true"
+            },
+            {
+              "name": "datacadastro_inicio",
+              "value": "2020-01-01"
+            },
+            {
+              "name": "datacadastro_fim",
+              "value": "={{ new Date().toISOString().split('T')[0] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "crm-get-leads",
+      "name": "Buscar Descartados (3)",
+      "position": [
+        272,
+        304
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "ydp9y6ZaLtz5wbfE",
+          "name": "CV CRM - Sym Imóveis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $input.first().json;\nconst prompt = `Voce e um assistente de reativacao de leads para uma imobiliaria. Seu objetivo e reengajar clientes que demonstraram interesse em imoveis, mas pararam de interagir. Seja amigavel, empatico e direto. Mencione o ultimo imovel de interesse do cliente para personalizar a mensagem. Ofereca ajuda e pergunte se ha algo novo em que ele esteja interessado. Nao faca uma oferta direta.\\n\\nInformacoes do Lead:\\nNome: ${lead.nome}\\nUltimo imovel de interesse: ${lead.ult_imovel_interesse || 'um imovel'}\\n\\nCrie uma mensagem curta e amigavel para o WhatsApp.`;\n\nconst supabasePayload = {\n  lead_id_cvcrm: String(lead.id),\n  telefone: String(lead.telefone),\n  status_reativacao: 'Enviado',\n  data_envio: new Date().toISOString(),\n  corretor_id_cvcrm: String(lead.idcorretor || ''),\n  historico_mensagens: []\n};\n\nreturn [{ json: { lead, prompt, supabasePayload } }];"
+      },
+      "id": "prep-prompt",
+      "name": "Preparar Prompt IA + Supabase",
+      "position": [
+        832,
+        304
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAFPQFRq7wwTAgY_--gNmTqDVK7qe442qE",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: $json.prompt }] }] }) }}",
+        "options": {}
+      },
+      "id": "gemini-gen",
+      "name": "Gemini: Gerar Mensagem",
+      "position": [
+        1088,
+        304
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev = $('Preparar Prompt IA + Supabase').first().json;\nconst leadData = prev.lead;\nconst iaResponse = $input.first().json.candidates[0].content.parts[0].text;\nconst supabasePayload = prev.supabasePayload;\n\nsupabasePayload.mensagem_enviada = iaResponse;\nsupabasePayload.historico_mensagens.push({\n  remetente: 'IA',\n  mensagem: iaResponse,\n  timestamp: new Date().toISOString()\n});\n\nreturn [{ json: { lead: leadData, iaMessage: iaResponse, supabasePayload } }];"
+      },
+      "id": "extract-msg",
+      "name": "Extrair Mensagem + Payload",
+      "position": [
+        1360,
+        304
+      ],
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.supabasePayload) }}",
+        "options": {}
+      },
+      "id": "supa-insert",
+      "name": "Supabase: Inserir Log",
+      "position": [
+        1616,
+        304
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "id": "wait-delay",
+      "name": "Humanizar Envio (Delay)",
+      "position": [
+        1872,
+        304
+      ],
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "webhookId": "a07818cb-1795-4fed-b7c5-b0949d31b631"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://72.60.244.51:8080/message/sendText/sym-imoveis",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "keySYMIMOVEIS2026"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ number: $('Extrair Mensagem + Payload').first().json.lead.telefone, textMessage: { text: $('Extrair Mensagem + Payload').first().json.iaMessage } }) }}",
+        "options": {}
+      },
+      "id": "evo-send",
+      "name": "Enviar WhatsApp (Evolution)",
+      "position": [
+        2128,
+        304
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sym.cvcrm.com.br/api/v1/relacionamento/atendimentos/cadastrar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ email: 'luan.tabaldi@symimoveis.com.br', token: 'caaf90738a994804bdb36a22905dcbabea8f81ad', idlead: $('Extrair Mensagem + Payload').first().json.lead.id, idcorretor: $('Extrair Mensagem + Payload').first().json.lead.idcorretor, idtipoatendimento: 1, descricao: 'Mensagem de reativacao enviada pela IA: ' + $('Extrair Mensagem + Payload').first().json.iaMessage, data_atendimento: new Date().toISOString().split('T')[0] }) }}",
+        "options": {}
+      },
+      "id": "crm-register",
+      "name": "CRM: Registrar Interacao",
+      "position": [
+        2400,
+        304
+      ],
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "url": "https://sym.cvcrm.com.br/api/v1/comercial/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpCustomAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "idsituacao",
+              "value": "14"
+            },
+            {
+              "name": "ativo",
+              "value": "true"
+            },
+            {
+              "name": "datacadastro_inicio",
+              "value": "2020-01-01"
+            },
+            {
+              "name": "datacadastro_fim",
+              "value": "={{ new Date().toISOString().split('T')[0] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "crm-get-leads-14",
+      "name": "Buscar Vencidos (14)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        272,
+        464
+      ],
+      "credentials": {
+        "httpCustomAuth": {
+          "id": "ydp9y6ZaLtz5wbfE",
+          "name": "CV CRM - Sym Imóveis"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "merge-leads",
+      "name": "Juntar Consultas",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        576,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let results = [];\n\nfor (let item of $input.all()) {\n  // A API pode retornar o array diretamente em item.json ou dentro de propriedades\n  let leadsArray = item.json.leads || item.json.data || item.json;\n  \n  if (Array.isArray(leadsArray)) {\n    for (let lead of leadsArray) {\n      if (lead && lead.id) { // garante que é um objeto lead válido\n        results.push({ json: lead });\n      }\n    }\n  } else if (item.json && item.json.id) {\n     // fallback caso seja um único lead\n     results.push({ json: item.json });\n  }\n}\n\nreturn results;"
+      },
+      "id": "code-extract-arrays",
+      "name": "Extrair JS Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "split-leads",
+      "name": "Processar Leads",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        576,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { status: 'concluido' } }];"
+      },
+      "id": "dummy-node",
+      "name": "Fim do Loop",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        144
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Enviar WhatsApp (Evolution)": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "CRM: Registrar Interacao",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Extrair Mensagem + Payload": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Supabase: Inserir Log",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Gemini: Gerar Mensagem": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Extrair Mensagem + Payload",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Humanizar Envio (Delay)": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Enviar WhatsApp (Evolution)",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Preparar Prompt IA + Supabase": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Gemini: Gerar Mensagem",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Schedule Diario 09h": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Buscar Descartados (3)",
+            "type": "main"
+          },
+          {
+            "node": "Buscar Vencidos (14)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Inserir Log": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Humanizar Envio (Delay)",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Buscar Descartados (3)": {
+      "main": [
+        [
+          {
+            "node": "Juntar Consultas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Vencidos (14)": {
+      "main": [
+        [
+          {
+            "node": "Juntar Consultas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Juntar Consultas": {
+      "main": [
+        [
+          {
+            "node": "Extrair JS Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair JS Leads": {
+      "main": [
+        [
+          {
+            "node": "Processar Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM: Registrar Interacao": {
+      "main": [
+        [
+          {
+            "node": "Processar Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Processar Leads": {
+      "main": [
+        [
+          {
+            "node": "Fim do Loop",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Preparar Prompt IA + Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "ee9157f2-55f5-4f24-8aa9-4fb484ebae3f",
+  "meta": {
+    "instanceId": "76e02c1199acc8641894c3a2ab67fb74a87cdd39756b532c0e6ac70674b8427a"
+  },
+  "id": "5iD0fqcBQQi4mOMO",
+  "tags": []
+}

@@ -1,0 +1,2132 @@
+{
+  "success": true,
+  "data": {
+    "updatedAt": "2026-07-20T19:22:29.504Z",
+    "createdAt": "2026-04-01T18:34:02.163Z",
+    "id": "vhyNPEZjOD9JMA8h",
+    "name": "Salva Lead — 2. Atendimento IA",
+    "description": null,
+    "active": true,
+    "isArchived": false,
+    "nodes": [
+      {
+        "parameters": {
+          "multipleMethods": true,
+          "path": "whatsapp-meta",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "wh-incoming",
+        "name": "Webhook WhatsApp",
+        "position": [
+          -48,
+          208
+        ],
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "webhookId": "3bef61b8-2419-4615-a275-248b3a0597a9",
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const input = $input.first().json;\n\n// === META VERIFICATION (GET) ===\nconst hubMode = input['hub.mode'] || (input.query && input.query['hub.mode']);\nif (hubMode === 'subscribe') {\n  const verifyToken = input['hub.verify_token'] || (input.query && input.query['hub.verify_token']);\n  if (verifyToken === 'evolution') {\n    const challenge = input['hub.challenge'] || (input.query && input.query['hub.challenge']);\n    return [{ json: { isVerification: true, challenge: String(challenge) } }];\n  }\n  return [];\n}\n\n// === META MESSAGE (POST) ===\nconst body = input.body || input;\nif (!body || body.object !== 'whatsapp_business_account') return [];\n\nconst entry = body.entry && body.entry[0];\nif (!entry || !entry.changes) return [];\n\nconst changes = entry.changes[0];\nif (!changes || changes.field !== 'messages') return [];\n\nconst value = changes.value;\nif (!value || !value.messages || !value.messages[0]) return [];\n\nconst message = value.messages[0];\n\n// Extrair texto de diferentes tipos de mensagem\nlet messageText = '';\nif (message.type === 'text') {\n  messageText = message.text.body;\n} else if (message.type === 'button') {\n  messageText = message.button.text || message.button.payload || '';\n} else if (message.type === 'interactive') {\n  if (message.interactive.button_reply) {\n    messageText = message.interactive.button_reply.title || '';\n  } else if (message.interactive.list_reply) {\n    messageText = message.interactive.list_reply.title || '';\n  }\n} else {\n  // Tipo nao suportado (image, audio, video, sticker, etc)\n  return [];\n}\n\nif (!messageText) return [];\n\nlet telefone = message.from;\n\n// Normalizar telefone BR: Meta envia 12 digitos (sem 9o digito)\n// Supabase tem 13 digitos (com 9o digito)\nif (telefone.startsWith('55') && telefone.length === 12) {\n  const ddd = telefone.substring(2, 4);\n  const numero = telefone.substring(4);\n  telefone = '55' + ddd + '9' + numero;\n}\n\nconst nomeContato = (value.contacts && value.contacts[0] && value.contacts[0].profile && value.contacts[0].profile.name) || 'Cliente';\nconst messageId = message.id;\nconst timestamp = message.timestamp;\n\nreturn [{ json: { isVerification: false, telefone, nomeContato, messageText, messageId, timestamp } }];"
+        },
+        "id": "roteador-meta",
+        "name": "Roteador Meta",
+        "position": [
+          224,
+          208
+        ],
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={\"status\": \"received\"}",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "resp-ok",
+        "name": "Responder OK",
+        "position": [
+          672,
+          304
+        ],
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1
+      },
+      {
+        "parameters": {
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              }
+            ]
+          },
+          "options": {},
+          "sendHeaders": true,
+          "url": "=https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?or=(telefone.eq.{{ $('Roteador Meta').first().json.telefone }},telefone.eq.{{ $('Roteador Meta').first().json.telefone.length === 13 ? $('Roteador Meta').first().json.telefone.slice(0, 4) + $('Roteador Meta').first().json.telefone.slice(5) : $('Roteador Meta').first().json.telefone }})&order=data_envio.desc&limit=1"
+        },
+        "id": "buscar-lead",
+        "name": "Buscar Lead Supabase",
+        "position": [
+          1120,
+          304
+        ],
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "alwaysOutputData": true,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "const msg = $('Roteador Meta').first().json;\nconst leadData = $('Buscar Lead Supabase').first().json;\nlet lead = null;\nif (Array.isArray(leadData)) { lead = leadData[0] || null; }\nelse if (leadData && leadData.id) { lead = leadData; }\n\n// PRIORIDADE: Usar o nome do lead cadastrado na plataforma (nome_lead)\n// Se não encontrar, usa o nome do perfil do WhatsApp (nomeContato)\n// Se nenhum estiver disponível, usa 'Cliente'\nconst nomeContato = lead?.nome_lead || msg.nomeContato || 'Cliente';\n\nconst observacaoCrm = lead?.observacao_crm || lead?.empreendimento_nome || null;\nconst imovelInteresse = observacaoCrm || 'Nao informado';\n\nconst leadIdCvcrm = lead?.lead_id_cvcrm || '';\nconst corretorId = lead?.corretor_id_cvcrm || '';\nconst statusReativacao = lead?.status_reativacao || 'Desconhecido';\nconst empreendimentoId = lead?.empreendimento_id || '';\nconst botaoResposta = msg.messageText || '';\nconst tipoCampanha = lead?.tipo_campanha || 'reativacao';\n\nreturn [{ json: {\n  chatInput: msg.messageText,\n  telefone: msg.telefone,\n  nomeContato,\n  imovelInteresse,\n  leadIdCvcrm,\n  corretorId,\n  empreendimentoId,\n  leadEncontrado: !!lead,\n  sessionId: msg.telefone,\n  botaoResposta,\n  statusReativacao,\n  jaReativado: statusReativacao === 'Reativado',\n  tipoCampanha\n} }];"
+        },
+        "id": "preparar-ctx",
+        "name": "Preparar Contexto",
+        "position": [
+          1344,
+          304
+        ],
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "id": "gemini-model",
+        "name": "Google Gemini",
+        "position": [
+          1760,
+          -48
+        ],
+        "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "typeVersion": 1,
+        "credentials": {
+          "googlePalmApi": {
+            "id": "CbXznqtnJPDx7WqX",
+            "name": "Google Gemini (PaLM) API"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "={{ $('Preparar Contexto').first().json.sessionId }}",
+          "contextWindowLength": 10
+        },
+        "id": "simple-memory",
+        "name": "Memoria Conversa",
+        "position": [
+          1936,
+          -48
+        ],
+        "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+        "typeVersion": 1.3
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.chatInput }}",
+          "options": {
+            "systemMessage": "=# IDENTIDADE\n\nVocê é Ana Paula, Coordenadora de Relacionamentos da Sym Imóveis, uma imobiliária localizada em Curitiba/PR.\nVocê está dando continuidade via WhatsApp a uma conversa iniciada por uma mensagem de reativação. \nO lead já respondeu como está a situação dele através de um botão. Sua tarefa começa aqui.\n\n---\n\n# OBJETIVO PRINCIPAL\n\nCom base na resposta do botão, conduzir a conversa de forma natural e empática para qualificar o lead e transferi-lo para um corretor, ou encerrá-la com leveza caso não haja interesse. Você deve usar a Base de Conhecimento abaixo para sanar dúvidas do cliente durante a qualificação.\n\n---\n\n# BASE DE CONHECIMENTO SYM IMÓVEIS\n\n> Escopo: imóveis prontos para venda e lançamentos. Locação NÃO é atendida por esta IA.\n\n## QUEM É A SYM IMÓVEIS\n- Especializada em imóveis de médio e alto padrão.\n- Atendimento presencial ou 100% digital, conforme preferência do cliente.\n- Missão: ir além da venda — entregar uma experiência e fazer parte da história do cliente.\n- Equipe: corretores especializados em diferentes regiões e tipos de imóveis.\n\n## ONDE ATUAMOS\n- Região: Curitiba.\n- Bairros atendidos: Agua Verde, Ahú, Alto da Glória, Alto da XV, Bacacheri, Batel, Bigorrilho, Boa Vista, Cabral, Campina do Siqueira, Campo Comprido, Centro Cívico, Cristo Rei, Ecoville, Hugo Lange, Jardim das Américas, Jardim Social, Juvevê, Mercês, Santa Felicidade, Santo Inácio, São Braz, São Lourenço, Vila Izabel, Vista Alegre.\n- Tipos de imóveis: apartamentos, coberturas, studios, casas em condomínio, salas e conjuntos comerciais.\n\n## O QUE VENDEMOS\n**Imóveis Prontos**\n- Imóveis já construídos, prontos para morar (novos ou usados).\n- A visita é sempre acompanhada por um corretor.\n- Valores a partir de R$ 500.000.\n\n**Lançamentos (Na Planta / Em Construção)**\n- Parcerias com as principais construtoras do Paraná: Plaenge, A.Yoshii, Vanguard, Paysage Corpal, GT Building, entre outras.\n- Empreendimentos em fase de lançamento, construção ou recém-entregues.\n\n## PROCESSO DE COMPRA E DÚVIDAS FREQUENTES\n- **Visitas:** Sempre acompanhadas por um corretor. O agendamento é feito conforme disponibilidade, basta o cliente solicitar.\n- **Propostas e Negociação:** A proposta é feita após a visita. A IA NÃO tem autonomia para negociar preços ou descontos. Isso é feito pelo corretor.\n- **Financiamento:** A Sym oferece assessoria gratuita (da análise de risco ao contrato).\n- **Atendimento Digital:** O processo pode ser feito 100% online se o cliente preferir.\n- **Locação:** A IA e este canal não atendem aluguel.\n\n---\n\n# FLUXOS DE ATENDIMENTO\n\nA resposta do lead no botão foi: {{ $json.botaoResposta }}\n\nSe a resposta contém 'Ainda busco' -> Siga o FLUXO A\nSe a resposta contém 'Ja comprei' -> Siga o FLUXO B\nSe a resposta contém 'Nao busco mais' -> Siga o FLUXO C\nPara qualquer outro texto inicial -> Trate como FLUXO A\n\n## FLUXO A — Lead ainda busca\n1. Reaja com naturalidade e entusiasmo contido (ex: 'Que bom saber! 😊').\n2. Se o \"Último interesse registrado\" (nos dados do lead) estiver preenchido, mencione-o de forma leve e confirme se ainda é o mesmo perfil buscado.\n3. Se estiver vazio, pergunte diretamente qual tipo de imóvel busca.\n4. Colete as informações abaixo de forma natural ao longo da conversa (NÃO mande tudo de uma vez, UMA POR MENSAGEM):\n   - Tipo de imóvel (se ainda não souber)\n   - Região ou bairro de preferência em Curitiba\n   - Faixa de valor aproximada\n5. Tire dúvidas usando a Base de Conhecimento, se o cliente perguntar.\n6. Após coletar o perfil básico, avise que vai conectá-lo com um corretor especialista. Ex: 'Ótimo! Vou te conectar com um dos nossos corretores que pode te ajudar melhor com isso 😊'\n7. Sempre direcione o lead para o atendimento humano para que o mesmo possa finalizar o atendimento.\n8. Encerre sua participação. PARE.\n\n## FLUXO B — Lead já comprou\n1. Parabenize de forma genuína e breve.\n2. Agradeça o contato e deseje felicidades no novo imóvel.\n3. Encerre. PARE. Não tente reverter ou oferecer mais produtos.\n\n## FLUXO C — Lead não busca mais\n1. Agradeça pela resposta com leveza.\n2. Deixe a porta aberta de forma natural (ex: 'Se mudar de ideia no futuro, estaremos por aqui!').\n3. Encerre. PARE. Não tente reverter.\n\n---\n\n# REGRAS E LIMITES DE COMPORTAMENTO\n\nTOM E LINGUAGEM\n- Português brasileiro informal, acolhedor e profissional.\n- Seja empática, leve e genuinamente curiosa, sem parecer forçada ou robótica.\n- Nunca use jargões de IA ou frases genéricas como \"estou aqui para ajudar\".\n- Caso o cliente fale em outro idioma, responda no mesmo idioma, tente entender o que ele precisa e direcione para o consultor.\n\nFORMATO DAS MENSAGENS\n- Máximo 2 a 3 frases por mensagem. Respostas curtas, estilo WhatsApp.\n- Nunca envie listas, tópicos ou blocos grandes de texto.\n- Usar no máximo 1 a 2 emojis por mensagem (apenas se necessário, evitar ao máximo)\n- Tentar ao máximo se adaptar a linguagem usada pelo cliente, mas evitando fugir muito do padrão de respostas curtas e objetivas e da linguagem informal, acolhedora e profissional.\n\nUSO DO NOME DO CLIENTE\n- Use o nome do cliente APENAS na PRIMEIRA resposta da conversa.\n- Nas mensagens seguintes, NÃO repita o nome. Fale diretamente sem vocativo.\n- Exceção: pode usar o nome novamente apenas ao se despedir ou ao encerrar a conversa.\n\nLIMITES ESTRITOS (O QUE NUNCA FAZER)\n- Nunca diga ou revele que é uma IA, robô ou assistente virtual.\n- Nunca invente informações, preços ou disponibilidade de imóveis.\n- Nunca negocie preços, condições de pagamento ou descontos.\n- Nunca prometa prazos de entrega de obra ou aprovação de financiamento.\n- Nunca envie links, endereços completos de imóveis ou dados de documentos.\n- Nunca atenda assuntos de locação/aluguel (redirecione para locacao@symimoveis.com.br).\n- Nunca fale sobre assuntos fora do contexto imobiliário.\n\nQUANDO NÃO SOUBER A RESPOSTA\n- Se o cliente fizer uma pergunta que não tem resposta na base de conhecimento, direcione para o consultor responsável. Diga algo como: \"Vou pedir para o consultor verificar isso e retornar em breve\" e pare.\n\n---\n\n# DADOS DO LEAD\n\nNome: {{ $json.nomeContato }}\nÚltimo interesse registrado: {{ $json.imovelInteresse }}\nBotão clicado inicialmente: {{ $json.botaoResposta }}\n\n*Nota: Se imovelInteresse estiver vazio ou \"Nao informado\", ignore esse campo e descubra o perfil naturalmente pela conversa.*\n"
+          }
+        },
+        "id": "ai-agent",
+        "name": "Agente IA Ana Paula",
+        "position": [
+          1760,
+          144
+        ],
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 2,
+        "maxTries": 5,
+        "retryOnFail": true,
+        "waitBetweenTries": 5000
+      },
+      {
+        "parameters": {
+          "jsCode": "const aiOutput = $input.first().json.output || $input.first().json.text || '';\nconst ctx = $('Preparar Contexto').first().json;\nconst msgUsuario = ctx.chatInput || '';\n\nfunction normalizar(str) {\n  return str.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim();\n}\n\nconst msgNorm = normalizar(msgUsuario);\nconst botaoNorm = normalizar(ctx.botaoResposta || '');\n\n// ===========================================================\n// DICIONÁRIO DE DESINTERESSE\n// Cobre botões da campanha de prospecção:\n//   \"Não tenho interesse no momento.\"\n//   \"Não receber mais mensagens.\"\n// E botões da campanha de reativação e variações livres.\n// ===========================================================\nconst palavrasSemInteresse = [\n  // Botões exatos da campanha de prospecção (após normalização)\n  'nao tenho interesse no momento',\n  'nao receber mais mensagens',\n  'nao quero receber mais mensagens',\n  // Botões da campanha de reativação\n  'ja comprei', 'nao busco mais', 'ja encontrei',\n  // Variações livres digitadas pelo lead\n  'nao preciso', 'nao tenho interesse', 'desistir',\n  'nao quero', 'nao busco', 'parar', 'cancelar',\n  'sair', 'remover', 'descadastrar', 'parar promocoes',\n  'nao enviar', 'nao mandar', 'sem interesse',\n  'nao quero mais', 'para de mandar', 'para de enviar',\n  'nao me contacte', 'nao me contate', 'me remove',\n  'tirar da lista', 'retirar da lista',\n  'nao tenho interesse agora', 'por enquanto nao',\n  'no momento nao', 'agora nao', 'obrigado mas nao',\n  'obrigada mas nao', 'nao preciso agora'\n];\n\nlet semInteresse = false;\nfor (const p of palavrasSemInteresse) {\n  if (botaoNorm.includes(p) || msgNorm.includes(p)) {\n    semInteresse = true;\n    break;\n  }\n}\n\n// Regex para opt-out explícito padrão Meta\nif (botaoNorm === 'parar promocoes' || botaoNorm === 'cancelar inscricao') {\n  semInteresse = true;\n}\n\nconst interesse = !semInteresse;\nconst statusConversa = semInteresse ? 'sem_interesse' : 'interesse_confirmado';\n\nconst jaReativado = ctx.jaReativado || false;\nconst deveReativarCRM = interesse && !jaReativado;\n\nconst padroes = [\n  { regex: /apartament|casa|terreno|sala|lote|cobertura|studio|kitnet|sobrado|imovel|im[oó]vel|lancamento|lan[cç]amento|planta|dormit[oó]rio|quarto|suite|vaga/i, label: 'Tipo de imovel' },\n  { regex: /bairro|regi[aã]o|agua verde|batel|port[aã]o|ecoville|champagnat|juvev[eê]|bacacheri|boa vista|rebou[cç]as|bigorrilho|cabral|alto da gl[oó]ria|merc[eê]s|ah[uú]|santa felicidade|campo comprido|centro|tang[uá]a|pinheirinho|xaxim|boqueir[aã]o|cajuru|tarum[aã]|uberaba|santo in[aá]cio|s[aã]o braz|vila izabel|vista alegre|jardim|hugo lange/i, label: 'Regiao/bairro' },\n  { regex: /R\\$\\s*[\\d.,]+|\\d+[.,]?\\d*\\s*(mil|milh[aã]o|milh[oõ]es|reais|k|M)|faixa de|valor|or[cç]amento|investimento|investir|revenda/i, label: 'Faixa de valor' }\n];\n\nconst infosDetectadas = [];\nif (interesse) {\n  for (const p of padroes) {\n    if (p.regex.test(msgUsuario)) {\n      infosDetectadas.push(p.label + ': ' + msgUsuario.substring(0, 120));\n    }\n  }\n}\n\nconst infoImportante = infosDetectadas.join(' | ');\nconst deveAdicionarInteracao = interesse && jaReativado && infoImportante.length > 0;\n\nreturn [{ json: {\n  respostaIA: aiOutput,\n  telefone: ctx.telefone,\n  nomeContato: ctx.nomeContato,\n  leadIdCvcrm: ctx.leadIdCvcrm,\n  corretorId: ctx.corretorId,\n  empreendimentoId: ctx.empreendimentoId,\n  interesse,\n  statusConversa,\n  mensagemUsuario: ctx.chatInput,\n  deveReativarCRM,\n  deveAdicionarInteracao,\n  infoImportante\n} }];"
+        },
+        "id": "processar-resp",
+        "name": "Processar Resposta IA",
+        "position": [
+          2080,
+          304
+        ],
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "http://72.60.244.51:8080/message/sendText/sym-imoveis-oficial",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "keySYMIMOVEIS2026"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ number: $json.telefone, textMessage: { text: $json.respostaIA } }) }}",
+          "options": {}
+        },
+        "id": "enviar-whatsapp",
+        "name": "Enviar Resposta WhatsApp",
+        "position": [
+          2304,
+          304
+        ],
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "combinator": "and",
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{ $('Processar Resposta IA').first().json.deveReativarCRM }}",
+                "operator": {
+                  "name": "filter.operator.equals",
+                  "operation": "equals",
+                  "type": "boolean"
+                },
+                "rightValue": true
+              }
+            ],
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            }
+          },
+          "options": {}
+        },
+        "id": "if-interesse",
+        "name": "Interesse Detectado",
+        "position": [
+          2528,
+          304
+        ],
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://sym.cvcrm.com.br/api/v1/comercial/leads",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "email",
+                "value": "luan.tabaldi@symimoveis.com.br"
+              },
+              {
+                "name": "token",
+                "value": "caaf90738a994804bdb36a22905dcbabea8f81ad"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify((() => { const ctx = $('Processar Resposta IA').first().json; const empId = Number(ctx.empreendimentoId); const payload = { permitir_alteracao: true, reativar_lead: true, idsituacao: 2, nome: ctx.nomeContato, telefone: ctx.telefone, midia: 'ia-whatsapp', origem: 'Reativacao IA WhatsApp', interacoes: [{ tipo: 'A', descricao: 'Lead reativado via IA WhatsApp. Demonstrou interesse. Resposta do lead: ' + ctx.mensagemUsuario }] }; if (empId && !isNaN(empId)) { payload.idempreendimento = empId; } return payload; })()) }}",
+          "options": {}
+        },
+        "id": "registrar-crm",
+        "name": "Registrar no CRM",
+        "position": [
+          2752,
+          240
+        ],
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2
+      },
+      {
+        "parameters": {
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "jsonBody": "={{ JSON.stringify({ p_telefone: $('Processar Resposta IA').first().json.telefone, p_lead_id: $('Processar Resposta IA').first().json.leadIdCvcrm || '', p_nome: $('Processar Resposta IA').first().json.nomeContato, p_status: $('Processar Resposta IA').first().json.statusConversa, p_interesse: $('Processar Resposta IA').first().json.interesse, p_resumo: $('Processar Resposta IA').first().json.infoImportante || null }) }}",
+          "method": "POST",
+          "options": {},
+          "sendBody": true,
+          "sendHeaders": true,
+          "specifyBody": "json",
+          "url": "https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/rpc/upsert_conversa_ia"
+        },
+        "id": "atualizar-supa",
+        "name": "Atualizar Supabase",
+        "position": [
+          3408,
+          480
+        ],
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "combinator": "and",
+            "conditions": [
+              {
+                "id": "cv",
+                "leftValue": "={{ $json.isVerification }}",
+                "operator": {
+                  "operation": "equals",
+                  "type": "boolean"
+                },
+                "rightValue": true
+              }
+            ],
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            }
+          },
+          "options": {}
+        },
+        "id": "if-verif",
+        "name": "Eh Verificacao",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          448,
+          208
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "text",
+          "responseBody": "={{ $('Roteador Meta').first().json.challenge }}",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "resp-challenge",
+        "name": "Responder Challenge",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          672,
+          112
+        ]
+      },
+      {
+        "parameters": {
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "jsonBody": "={{ JSON.stringify({ status_reativacao: 'Respondido', data_resposta: new Date().toISOString(), ultima_resposta_lead: $('Roteador Meta').first().json.messageText }) }}",
+          "method": "PATCH",
+          "options": {},
+          "sendBody": true,
+          "sendHeaders": true,
+          "specifyBody": "json",
+          "url": "=https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?or=(telefone.eq.{{ $('Roteador Meta').first().json.telefone }},telefone.eq.{{ $('Roteador Meta').first().json.telefone.length === 13 ? $('Roteador Meta').first().json.telefone.slice(0, 4) + $('Roteador Meta').first().json.telefone.slice(5) : $('Roteador Meta').first().json.telefone }})"
+        },
+        "id": "update-lead-status",
+        "name": "Atualizar Status Lead",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          896,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "jsonBody": "={{ JSON.stringify({ status_reativacao: 'Reativado' }) }}",
+          "method": "PATCH",
+          "options": {},
+          "sendBody": true,
+          "sendHeaders": true,
+          "specifyBody": "json",
+          "url": "=https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?or=(telefone.eq.{{ $('Processar Resposta IA').first().json.telefone }},telefone.eq.{{ $('Processar Resposta IA').first().json.telefone.length === 13 ? $('Processar Resposta IA').first().json.telefone.slice(0, 4) + $('Processar Resposta IA').first().json.telefone.slice(5) : $('Processar Resposta IA').first().json.telefone }})"
+        },
+        "id": "marcar-reativado",
+        "name": "Marcar Reativado Supabase",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2992,
+          240
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "combinator": "and",
+            "conditions": [
+              {
+                "id": "c2",
+                "leftValue": "={{ $('Processar Resposta IA').first().json.deveAdicionarInteracao }}",
+                "operator": {
+                  "name": "filter.operator.equals",
+                  "operation": "equals",
+                  "type": "boolean"
+                },
+                "rightValue": true
+              }
+            ],
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            }
+          },
+          "options": {}
+        },
+        "id": "if-add-interacao",
+        "name": "Info Importante Detectada",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          2544,
+          688
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://sym.cvcrm.com.br/api/v1/comercial/leads",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "email",
+                "value": "luan.tabaldi@symimoveis.com.br"
+              },
+              {
+                "name": "token",
+                "value": "caaf90738a994804bdb36a22905dcbabea8f81ad"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ permitir_alteracao: true, telefone: $('Processar Resposta IA').first().json.telefone, interacoes: [{ tipo: 'A', descricao: '[IA] ' + $('Processar Resposta IA').first().json.infoImportante }] }) }}",
+          "options": {}
+        },
+        "id": "add-interacao-crm",
+        "name": "Adicionar Interacao CRM",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2752,
+          672
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "combinator": "and",
+            "conditions": [
+              {
+                "id": "cp1",
+                "leftValue": "={{ $json.tipoCampanha }}",
+                "operator": {
+                  "operation": "equals",
+                  "type": "string"
+                },
+                "rightValue": "prospeccao"
+              }
+            ],
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            }
+          },
+          "options": {}
+        },
+        "id": "6cefcbe7-33aa-4fba-830a-44175f2d8751",
+        "name": "Prospeccao?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          1504,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "id": "43af00ad-26db-477d-a569-a0b5ba13ab62",
+        "name": "Gemini Prospeccao",
+        "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "typeVersion": 1,
+        "position": [
+          1760,
+          688
+        ],
+        "credentials": {
+          "googlePalmApi": {
+            "id": "CbXznqtnJPDx7WqX",
+            "name": "Google Gemini (PaLM) API"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "=prosp_{{ $('Preparar Contexto').first().json.sessionId }}",
+          "contextWindowLength": 10
+        },
+        "id": "cea75c3a-325c-4d95-b67b-7c72d727debd",
+        "name": "Memoria Prospeccao",
+        "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+        "typeVersion": 1.3,
+        "position": [
+          1856,
+          848
+        ]
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.chatInput }}",
+          "options": {
+            "systemMessage": "=Voce e a Ana Paula, da Sym Imoveis em Curitiba. Voce mandou uma oferta pro lead sobre:\n\n{{ $json.imovelInteresse }}\n\nEle respondeu e voce ta dando sequencia.\n\nSeu trabalho: confirmar se tem interesse, pegar o melhor horario pro consultor chamar ele aqui no WhatsApp, e encerrar. Voce nao sabe detalhes do produto, preco, planta, condicao de pagamento, nada disso. Quem sabe e o consultor.\n\nA conversa ideal dura 2 a 3 mensagens. Nao mais que isso.\n\n---\n\nO lead respondeu: {{ $json.botaoResposta }}\n\nSe ele demonstrou interesse ou curiosidade:\n- Agradece rapido, sem exagero\n- Fala que vai passar pro consultor que manja tudo desse empreendimento\n- Pergunta qual horario e bom pro consultor chamar ele aqui\n- Quando ele der o horario, confirma e encerra\n\nSe ele perguntou algo tecnico (preco, metragem, planta, unidades, financiamento):\n- Nao responde. Fala que o consultor passa isso certinho e que vai encaminhar\n- Encerra\n\nSe ele demonstrou desinteresse ou pediu pra nao receber mais:\n- Pede desculpa rapido, agradece e encerra\n- Nao insiste\n\nSe o lead der abertura na conversa e falar espontaneamente sobre o que busca (pra morar, investir, tamanho, regiao), aproveita e anota. Isso enriquece o atendimento do corretor. Mas nao force essas perguntas. So pega se vier naturalmente.\n\n---\n\nRegras:\n- Maximo 2 frases por mensagem\n- Use o nome ({{ $json.nomeContato }}) so na primeira mensagem\n- 1 emoji no maximo, e so se encaixar\n- Varie as frases. Nao repita estrutura\n- Fale como gente de verdade no WhatsApp. Nada de textao, lista ou topico\n- Nunca diga que e IA ou assistente\n- Nunca invente dado sobre o produto\n- Nunca mande link, endereco ou documento\n- Se falar de aluguel: 'pra locacao o canal e locacao@symimoveis.com.br'\n- Se fugir do assunto, traz de volta ou encerra tranquilo\n"
+          }
+        },
+        "id": "32cfd30e-3db6-425c-a7c6-de2eb5492875",
+        "name": "Agente Prospeccao",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 2,
+        "position": [
+          1760,
+          464
+        ],
+        "retryOnFail": true,
+        "maxTries": 5,
+        "waitBetweenTries": 5000
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://sym.cvcrm.com.br/api/v1/comercial/leads",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpCustomAuth",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ permitir_alteracao: true, idsituacao: 3, telefone: $('Processar Resposta IA').first().json.telefone, interacoes: [{ tipo: 'A', descricao: '[IA] Lead optou por nao ser contatado. Resposta: ' + $('Processar Resposta IA').first().json.mensagemUsuario }] }) }}",
+          "options": {}
+        },
+        "id": "manter-descartado",
+        "name": "Manter Descartado no CRM",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2752,
+          400
+        ],
+        "credentials": {
+          "httpCustomAuth": {
+            "id": "ydp9y6ZaLtz5wbfE",
+            "name": "CV CRM - Sym Imóveis"
+          }
+        },
+        "continueOnFail": true
+      },
+      {
+        "parameters": {
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "jsonBody": "={{ JSON.stringify({ p_telefone: $('Processar Resposta IA').first().json.telefone, p_lead_id: $('Processar Resposta IA').first().json.leadIdCvcrm || '', p_nome: $('Processar Resposta IA').first().json.nomeContato, p_status: $('Processar Resposta IA').first().json.statusConversa, p_interesse: $('Processar Resposta IA').first().json.interesse, p_resumo: $('Processar Resposta IA').first().json.infoImportante || 'Lead demonstrou interesse' }) }}",
+          "method": "POST",
+          "options": {},
+          "sendBody": true,
+          "sendHeaders": true,
+          "specifyBody": "json",
+          "url": "https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/rpc/upsert_conversa_ia"
+        },
+        "id": "salvar-interessados",
+        "name": "Salvar Interessados Supabase",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3216,
+          672
+        ],
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "salvar-historico",
+        "name": "Salvar Histórico Supabase",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2528,
+          480
+        ],
+        "parameters": {
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "jsonBody": "={{ JSON.stringify((() => { const leadData = $('Buscar Lead Supabase').first().json; const lead = Array.isArray(leadData) ? leadData[0] : leadData; const oldHistory = Array.isArray(lead?.historico_mensagens) ? lead.historico_mensagens : []; const ctx = $('Preparar Contexto').first().json; const resp = $('Processar Resposta IA').first().json; const newHistory = [...oldHistory]; if (ctx.chatInput) { newHistory.push({ mensagem: ctx.chatInput, remetente: 'lead', timestamp: new Date().toISOString() }); } if (resp.respostaIA) { newHistory.push({ mensagem: resp.respostaIA, remetente: 'ia', timestamp: new Date().toISOString() }); } return { historico_mensagens: newHistory }; })()) }}",
+          "method": "PATCH",
+          "options": {},
+          "sendBody": true,
+          "sendHeaders": true,
+          "specifyBody": "json",
+          "url": "={{ \"https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?id=eq.\" + ($('Buscar Lead Supabase').first().json[0]?.id || $('Buscar Lead Supabase').first().json?.id) }}"
+        }
+      }
+    ],
+    "connections": {
+      "Agente IA Ana Paula": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Processar Resposta IA",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Buscar Lead Supabase": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Preparar Contexto",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Eh Verificacao": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Responder Challenge",
+              "type": "main"
+            }
+          ],
+          [
+            {
+              "index": 0,
+              "node": "Responder OK",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Enviar Resposta WhatsApp": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Interesse Detectado",
+              "type": "main"
+            },
+            {
+              "node": "Info Importante Detectada",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Salvar Histórico Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Google Gemini": {
+        "ai_languageModel": [
+          [
+            {
+              "index": 0,
+              "node": "Agente IA Ana Paula",
+              "type": "ai_languageModel"
+            }
+          ]
+        ]
+      },
+      "Interesse Detectado": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Registrar no CRM",
+              "type": "main"
+            }
+          ],
+          [
+            {
+              "node": "Manter Descartado no CRM",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Memoria Conversa": {
+        "ai_memory": [
+          [
+            {
+              "index": 0,
+              "node": "Agente IA Ana Paula",
+              "type": "ai_memory"
+            }
+          ]
+        ]
+      },
+      "Processar Resposta IA": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Enviar Resposta WhatsApp",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Registrar no CRM": {
+        "main": [
+          [
+            {
+              "node": "Marcar Reativado Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Responder OK": {
+        "main": [
+          [
+            {
+              "node": "Atualizar Status Lead",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Roteador Meta": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Eh Verificacao",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Webhook WhatsApp": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Roteador Meta",
+              "type": "main"
+            }
+          ],
+          [
+            {
+              "index": 0,
+              "node": "Roteador Meta",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Atualizar Status Lead": {
+        "main": [
+          [
+            {
+              "node": "Buscar Lead Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Marcar Reativado Supabase": {
+        "main": [
+          [
+            {
+              "node": "Atualizar Supabase",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Salvar Interessados Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Info Importante Detectada": {
+        "main": [
+          [
+            {
+              "node": "Adicionar Interacao CRM",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Adicionar Interacao CRM": {
+        "main": [
+          [
+            {
+              "node": "Atualizar Supabase",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Salvar Interessados Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Preparar Contexto": {
+        "main": [
+          [
+            {
+              "node": "Prospeccao?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prospeccao?": {
+        "main": [
+          [
+            {
+              "node": "Agente Prospeccao",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Agente IA Ana Paula",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Agente Prospeccao": {
+        "main": [
+          [
+            {
+              "node": "Processar Resposta IA",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Gemini Prospeccao": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "Agente Prospeccao",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Memoria Prospeccao": {
+        "ai_memory": [
+          [
+            {
+              "node": "Agente Prospeccao",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Manter Descartado no CRM": {
+        "main": [
+          [
+            {
+              "node": "Atualizar Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Salvar Interessados Supabase": {
+        "main": [
+          [
+            {
+              "node": "Atualizar Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "executionOrder": "v1",
+      "saveDataErrorExecution": "all",
+      "saveDataSuccessExecution": "all",
+      "saveManualExecutions": true,
+      "callerPolicy": "workflowsFromSameOwner",
+      "availableInMCP": false,
+      "binaryMode": "separate"
+    },
+    "staticData": null,
+    "meta": {
+      "templateCredsSetupCompleted": true
+    },
+    "pinData": {
+      "Webhook WhatsApp": [
+        {
+          "json": {
+            "headers": {
+              "host": "n8n.srv1214309.hstgr.cloud",
+              "user-agent": "facebookexternalua",
+              "content-length": "515",
+              "accept": "*/*",
+              "accept-encoding": "deflate, gzip",
+              "content-type": "application/json",
+              "x-forwarded-for": "172.18.0.1",
+              "x-forwarded-host": "n8n.srv1214309.hstgr.cloud",
+              "x-forwarded-port": "443",
+              "x-forwarded-proto": "https",
+              "x-forwarded-server": "97d17f856cf2",
+              "x-hub-signature": "sha1=885106b08f4bc92807f2e8acb5ff89a494630a45",
+              "x-hub-signature-256": "sha256=70ee208065cfca98ad02745593f1820128ccb5af8cb423e21307bbc7186d9085",
+              "x-real-ip": "172.18.0.1"
+            },
+            "params": {},
+            "query": {},
+            "body": {
+              "object": "whatsapp_business_account",
+              "entry": [
+                {
+                  "id": "4179702158959897",
+                  "changes": [
+                    {
+                      "value": {
+                        "messaging_product": "whatsapp",
+                        "metadata": {
+                          "display_phone_number": "554184321397",
+                          "phone_number_id": "1057312227463254"
+                        },
+                        "contacts": [
+                          {
+                            "profile": {
+                              "name": "Luan Tabaldi"
+                            },
+                            "wa_id": "554191156633"
+                          }
+                        ],
+                        "messages": [
+                          {
+                            "from": "554191156633",
+                            "id": "wamid.HBgMNTU0MTkxMTU2NjMzFQIAEhgWM0VCMDMwMjFDQ0E3RDBBQjBBNEEyMQA=",
+                            "timestamp": "1775140819",
+                            "text": {
+                              "body": "pensei só no valor, perto de R$1M"
+                            },
+                            "type": "text"
+                          }
+                        ]
+                      },
+                      "field": "messages"
+                    }
+                  ]
+                }
+              ]
+            },
+            "webhookUrl": "https://n8n.srv1214309.hstgr.cloud/webhook/whatsapp-meta",
+            "executionMode": "production"
+          },
+          "pairedItem": {
+            "item": 0,
+            "input": 1
+          }
+        }
+      ]
+    },
+    "versionId": "ea1aedab-2e64-4985-85dc-b146d977c9b8",
+    "activeVersionId": "ea1aedab-2e64-4985-85dc-b146d977c9b8",
+    "versionCounter": 285,
+    "triggerCount": 1,
+    "shared": [
+      {
+        "updatedAt": "2026-04-01T18:34:02.163Z",
+        "createdAt": "2026-04-01T18:34:02.163Z",
+        "role": "workflow:owner",
+        "workflowId": "vhyNPEZjOD9JMA8h",
+        "projectId": "J0NusIYKhSdXeRh7",
+        "project": {
+          "updatedAt": "2025-12-22T15:15:49.173Z",
+          "createdAt": "2025-12-22T15:06:58.923Z",
+          "id": "J0NusIYKhSdXeRh7",
+          "name": "Luan Tabaldi <gt.luantabaldi@gmail.com>",
+          "type": "personal",
+          "icon": null,
+          "description": null,
+          "creatorId": "2692e6d8-5c6b-4f11-8fe3-2e84c21f27ee"
+        }
+      }
+    ],
+    "tags": [],
+    "activeVersion": {
+      "updatedAt": "2026-07-20T19:22:29.505Z",
+      "createdAt": "2026-07-20T19:22:29.505Z",
+      "versionId": "ea1aedab-2e64-4985-85dc-b146d977c9b8",
+      "workflowId": "vhyNPEZjOD9JMA8h",
+      "nodes": [
+        {
+          "parameters": {
+            "multipleMethods": true,
+            "path": "whatsapp-meta",
+            "responseMode": "responseNode",
+            "options": {}
+          },
+          "id": "wh-incoming",
+          "name": "Webhook WhatsApp",
+          "position": [
+            -48,
+            208
+          ],
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 2,
+          "webhookId": "3bef61b8-2419-4615-a275-248b3a0597a9",
+          "onError": "continueRegularOutput"
+        },
+        {
+          "parameters": {
+            "jsCode": "const input = $input.first().json;\n\n// === META VERIFICATION (GET) ===\nconst hubMode = input['hub.mode'] || (input.query && input.query['hub.mode']);\nif (hubMode === 'subscribe') {\n  const verifyToken = input['hub.verify_token'] || (input.query && input.query['hub.verify_token']);\n  if (verifyToken === 'evolution') {\n    const challenge = input['hub.challenge'] || (input.query && input.query['hub.challenge']);\n    return [{ json: { isVerification: true, challenge: String(challenge) } }];\n  }\n  return [];\n}\n\n// === META MESSAGE (POST) ===\nconst body = input.body || input;\nif (!body || body.object !== 'whatsapp_business_account') return [];\n\nconst entry = body.entry && body.entry[0];\nif (!entry || !entry.changes) return [];\n\nconst changes = entry.changes[0];\nif (!changes || changes.field !== 'messages') return [];\n\nconst value = changes.value;\nif (!value || !value.messages || !value.messages[0]) return [];\n\nconst message = value.messages[0];\n\n// Extrair texto de diferentes tipos de mensagem\nlet messageText = '';\nif (message.type === 'text') {\n  messageText = message.text.body;\n} else if (message.type === 'button') {\n  messageText = message.button.text || message.button.payload || '';\n} else if (message.type === 'interactive') {\n  if (message.interactive.button_reply) {\n    messageText = message.interactive.button_reply.title || '';\n  } else if (message.interactive.list_reply) {\n    messageText = message.interactive.list_reply.title || '';\n  }\n} else {\n  // Tipo nao suportado (image, audio, video, sticker, etc)\n  return [];\n}\n\nif (!messageText) return [];\n\nlet telefone = message.from;\n\n// Normalizar telefone BR: Meta envia 12 digitos (sem 9o digito)\n// Supabase tem 13 digitos (com 9o digito)\nif (telefone.startsWith('55') && telefone.length === 12) {\n  const ddd = telefone.substring(2, 4);\n  const numero = telefone.substring(4);\n  telefone = '55' + ddd + '9' + numero;\n}\n\nconst nomeContato = (value.contacts && value.contacts[0] && value.contacts[0].profile && value.contacts[0].profile.name) || 'Cliente';\nconst messageId = message.id;\nconst timestamp = message.timestamp;\n\nreturn [{ json: { isVerification: false, telefone, nomeContato, messageText, messageId, timestamp } }];"
+          },
+          "id": "roteador-meta",
+          "name": "Roteador Meta",
+          "position": [
+            224,
+            208
+          ],
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2
+        },
+        {
+          "parameters": {
+            "respondWith": "json",
+            "responseBody": "={\"status\": \"received\"}",
+            "options": {
+              "responseCode": 200
+            }
+          },
+          "id": "resp-ok",
+          "name": "Responder OK",
+          "position": [
+            672,
+            304
+          ],
+          "type": "n8n-nodes-base.respondToWebhook",
+          "typeVersion": 1.1
+        },
+        {
+          "parameters": {
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "apikey",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Authorization",
+                  "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                }
+              ]
+            },
+            "options": {},
+            "sendHeaders": true,
+            "url": "=https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?or=(telefone.eq.{{ $('Roteador Meta').first().json.telefone }},telefone.eq.{{ $('Roteador Meta').first().json.telefone.length === 13 ? $('Roteador Meta').first().json.telefone.slice(0, 4) + $('Roteador Meta').first().json.telefone.slice(5) : $('Roteador Meta').first().json.telefone }})&order=data_envio.desc&limit=1"
+          },
+          "id": "buscar-lead",
+          "name": "Buscar Lead Supabase",
+          "position": [
+            1120,
+            304
+          ],
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "alwaysOutputData": true,
+          "onError": "continueRegularOutput"
+        },
+        {
+          "parameters": {
+            "jsCode": "const msg = $('Roteador Meta').first().json;\nconst leadData = $('Buscar Lead Supabase').first().json;\nlet lead = null;\nif (Array.isArray(leadData)) { lead = leadData[0] || null; }\nelse if (leadData && leadData.id) { lead = leadData; }\n\n// PRIORIDADE: Usar o nome do lead cadastrado na plataforma (nome_lead)\n// Se não encontrar, usa o nome do perfil do WhatsApp (nomeContato)\n// Se nenhum estiver disponível, usa 'Cliente'\nconst nomeContato = lead?.nome_lead || msg.nomeContato || 'Cliente';\n\nconst observacaoCrm = lead?.observacao_crm || lead?.empreendimento_nome || null;\nconst imovelInteresse = observacaoCrm || 'Nao informado';\n\nconst leadIdCvcrm = lead?.lead_id_cvcrm || '';\nconst corretorId = lead?.corretor_id_cvcrm || '';\nconst statusReativacao = lead?.status_reativacao || 'Desconhecido';\nconst empreendimentoId = lead?.empreendimento_id || '';\nconst botaoResposta = msg.messageText || '';\nconst tipoCampanha = lead?.tipo_campanha || 'reativacao';\n\nreturn [{ json: {\n  chatInput: msg.messageText,\n  telefone: msg.telefone,\n  nomeContato,\n  imovelInteresse,\n  leadIdCvcrm,\n  corretorId,\n  empreendimentoId,\n  leadEncontrado: !!lead,\n  sessionId: msg.telefone,\n  botaoResposta,\n  statusReativacao,\n  jaReativado: statusReativacao === 'Reativado',\n  tipoCampanha\n} }];"
+          },
+          "id": "preparar-ctx",
+          "name": "Preparar Contexto",
+          "position": [
+            1344,
+            304
+          ],
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2
+        },
+        {
+          "parameters": {
+            "options": {}
+          },
+          "id": "gemini-model",
+          "name": "Google Gemini",
+          "position": [
+            1760,
+            -48
+          ],
+          "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+          "typeVersion": 1,
+          "credentials": {
+            "googlePalmApi": {
+              "id": "CbXznqtnJPDx7WqX",
+              "name": "Google Gemini (PaLM) API"
+            }
+          }
+        },
+        {
+          "parameters": {
+            "sessionIdType": "customKey",
+            "sessionKey": "={{ $('Preparar Contexto').first().json.sessionId }}",
+            "contextWindowLength": 10
+          },
+          "id": "simple-memory",
+          "name": "Memoria Conversa",
+          "position": [
+            1936,
+            -48
+          ],
+          "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+          "typeVersion": 1.3
+        },
+        {
+          "parameters": {
+            "promptType": "define",
+            "text": "={{ $json.chatInput }}",
+            "options": {
+              "systemMessage": "=# IDENTIDADE\n\nVocê é Ana Paula, Coordenadora de Relacionamentos da Sym Imóveis, uma imobiliária localizada em Curitiba/PR.\nVocê está dando continuidade via WhatsApp a uma conversa iniciada por uma mensagem de reativação. \nO lead já respondeu como está a situação dele através de um botão. Sua tarefa começa aqui.\n\n---\n\n# OBJETIVO PRINCIPAL\n\nCom base na resposta do botão, conduzir a conversa de forma natural e empática para qualificar o lead e transferi-lo para um corretor, ou encerrá-la com leveza caso não haja interesse. Você deve usar a Base de Conhecimento abaixo para sanar dúvidas do cliente durante a qualificação.\n\n---\n\n# BASE DE CONHECIMENTO SYM IMÓVEIS\n\n> Escopo: imóveis prontos para venda e lançamentos. Locação NÃO é atendida por esta IA.\n\n## QUEM É A SYM IMÓVEIS\n- Especializada em imóveis de médio e alto padrão.\n- Atendimento presencial ou 100% digital, conforme preferência do cliente.\n- Missão: ir além da venda — entregar uma experiência e fazer parte da história do cliente.\n- Equipe: corretores especializados em diferentes regiões e tipos de imóveis.\n\n## ONDE ATUAMOS\n- Região: Curitiba.\n- Bairros atendidos: Agua Verde, Ahú, Alto da Glória, Alto da XV, Bacacheri, Batel, Bigorrilho, Boa Vista, Cabral, Campina do Siqueira, Campo Comprido, Centro Cívico, Cristo Rei, Ecoville, Hugo Lange, Jardim das Américas, Jardim Social, Juvevê, Mercês, Santa Felicidade, Santo Inácio, São Braz, São Lourenço, Vila Izabel, Vista Alegre.\n- Tipos de imóveis: apartamentos, coberturas, studios, casas em condomínio, salas e conjuntos comerciais.\n\n## O QUE VENDEMOS\n**Imóveis Prontos**\n- Imóveis já construídos, prontos para morar (novos ou usados).\n- A visita é sempre acompanhada por um corretor.\n- Valores a partir de R$ 500.000.\n\n**Lançamentos (Na Planta / Em Construção)**\n- Parcerias com as principais construtoras do Paraná: Plaenge, A.Yoshii, Vanguard, Paysage Corpal, GT Building, entre outras.\n- Empreendimentos em fase de lançamento, construção ou recém-entregues.\n\n## PROCESSO DE COMPRA E DÚVIDAS FREQUENTES\n- **Visitas:** Sempre acompanhadas por um corretor. O agendamento é feito conforme disponibilidade, basta o cliente solicitar.\n- **Propostas e Negociação:** A proposta é feita após a visita. A IA NÃO tem autonomia para negociar preços ou descontos. Isso é feito pelo corretor.\n- **Financiamento:** A Sym oferece assessoria gratuita (da análise de risco ao contrato).\n- **Atendimento Digital:** O processo pode ser feito 100% online se o cliente preferir.\n- **Locação:** A IA e este canal não atendem aluguel.\n\n---\n\n# FLUXOS DE ATENDIMENTO\n\nA resposta do lead no botão foi: {{ $json.botaoResposta }}\n\nSe a resposta contém 'Ainda busco' -> Siga o FLUXO A\nSe a resposta contém 'Ja comprei' -> Siga o FLUXO B\nSe a resposta contém 'Nao busco mais' -> Siga o FLUXO C\nPara qualquer outro texto inicial -> Trate como FLUXO A\n\n## FLUXO A — Lead ainda busca\n1. Reaja com naturalidade e entusiasmo contido (ex: 'Que bom saber! 😊').\n2. Se o \"Último interesse registrado\" (nos dados do lead) estiver preenchido, mencione-o de forma leve e confirme se ainda é o mesmo perfil buscado.\n3. Se estiver vazio, pergunte diretamente qual tipo de imóvel busca.\n4. Colete as informações abaixo de forma natural ao longo da conversa (NÃO mande tudo de uma vez, UMA POR MENSAGEM):\n   - Tipo de imóvel (se ainda não souber)\n   - Região ou bairro de preferência em Curitiba\n   - Faixa de valor aproximada\n5. Tire dúvidas usando a Base de Conhecimento, se o cliente perguntar.\n6. Após coletar o perfil básico, avise que vai conectá-lo com um corretor especialista. Ex: 'Ótimo! Vou te conectar com um dos nossos corretores que pode te ajudar melhor com isso 😊'\n7. Sempre direcione o lead para o atendimento humano para que o mesmo possa finalizar o atendimento.\n8. Encerre sua participação. PARE.\n\n## FLUXO B — Lead já comprou\n1. Parabenize de forma genuína e breve.\n2. Agradeça o contato e deseje felicidades no novo imóvel.\n3. Encerre. PARE. Não tente reverter ou oferecer mais produtos.\n\n## FLUXO C — Lead não busca mais\n1. Agradeça pela resposta com leveza.\n2. Deixe a porta aberta de forma natural (ex: 'Se mudar de ideia no futuro, estaremos por aqui!').\n3. Encerre. PARE. Não tente reverter.\n\n---\n\n# REGRAS E LIMITES DE COMPORTAMENTO\n\nTOM E LINGUAGEM\n- Português brasileiro informal, acolhedor e profissional.\n- Seja empática, leve e genuinamente curiosa, sem parecer forçada ou robótica.\n- Nunca use jargões de IA ou frases genéricas como \"estou aqui para ajudar\".\n- Caso o cliente fale em outro idioma, responda no mesmo idioma, tente entender o que ele precisa e direcione para o consultor.\n\nFORMATO DAS MENSAGENS\n- Máximo 2 a 3 frases por mensagem. Respostas curtas, estilo WhatsApp.\n- Nunca envie listas, tópicos ou blocos grandes de texto.\n- Usar no máximo 1 a 2 emojis por mensagem (apenas se necessário, evitar ao máximo)\n- Tentar ao máximo se adaptar a linguagem usada pelo cliente, mas evitando fugir muito do padrão de respostas curtas e objetivas e da linguagem informal, acolhedora e profissional.\n\nUSO DO NOME DO CLIENTE\n- Use o nome do cliente APENAS na PRIMEIRA resposta da conversa.\n- Nas mensagens seguintes, NÃO repita o nome. Fale diretamente sem vocativo.\n- Exceção: pode usar o nome novamente apenas ao se despedir ou ao encerrar a conversa.\n\nLIMITES ESTRITOS (O QUE NUNCA FAZER)\n- Nunca diga ou revele que é uma IA, robô ou assistente virtual.\n- Nunca invente informações, preços ou disponibilidade de imóveis.\n- Nunca negocie preços, condições de pagamento ou descontos.\n- Nunca prometa prazos de entrega de obra ou aprovação de financiamento.\n- Nunca envie links, endereços completos de imóveis ou dados de documentos.\n- Nunca atenda assuntos de locação/aluguel (redirecione para locacao@symimoveis.com.br).\n- Nunca fale sobre assuntos fora do contexto imobiliário.\n\nQUANDO NÃO SOUBER A RESPOSTA\n- Se o cliente fizer uma pergunta que não tem resposta na base de conhecimento, direcione para o consultor responsável. Diga algo como: \"Vou pedir para o consultor verificar isso e retornar em breve\" e pare.\n\n---\n\n# DADOS DO LEAD\n\nNome: {{ $json.nomeContato }}\nÚltimo interesse registrado: {{ $json.imovelInteresse }}\nBotão clicado inicialmente: {{ $json.botaoResposta }}\n\n*Nota: Se imovelInteresse estiver vazio ou \"Nao informado\", ignore esse campo e descubra o perfil naturalmente pela conversa.*\n"
+            }
+          },
+          "id": "ai-agent",
+          "name": "Agente IA Ana Paula",
+          "position": [
+            1760,
+            144
+          ],
+          "type": "@n8n/n8n-nodes-langchain.agent",
+          "typeVersion": 2,
+          "maxTries": 5,
+          "retryOnFail": true,
+          "waitBetweenTries": 5000
+        },
+        {
+          "parameters": {
+            "jsCode": "const aiOutput = $input.first().json.output || $input.first().json.text || '';\nconst ctx = $('Preparar Contexto').first().json;\nconst msgUsuario = ctx.chatInput || '';\n\nfunction normalizar(str) {\n  return str.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim();\n}\n\nconst msgNorm = normalizar(msgUsuario);\nconst botaoNorm = normalizar(ctx.botaoResposta || '');\n\n// ===========================================================\n// DICIONÁRIO DE DESINTERESSE\n// Cobre botões da campanha de prospecção:\n//   \"Não tenho interesse no momento.\"\n//   \"Não receber mais mensagens.\"\n// E botões da campanha de reativação e variações livres.\n// ===========================================================\nconst palavrasSemInteresse = [\n  // Botões exatos da campanha de prospecção (após normalização)\n  'nao tenho interesse no momento',\n  'nao receber mais mensagens',\n  'nao quero receber mais mensagens',\n  // Botões da campanha de reativação\n  'ja comprei', 'nao busco mais', 'ja encontrei',\n  // Variações livres digitadas pelo lead\n  'nao preciso', 'nao tenho interesse', 'desistir',\n  'nao quero', 'nao busco', 'parar', 'cancelar',\n  'sair', 'remover', 'descadastrar', 'parar promocoes',\n  'nao enviar', 'nao mandar', 'sem interesse',\n  'nao quero mais', 'para de mandar', 'para de enviar',\n  'nao me contacte', 'nao me contate', 'me remove',\n  'tirar da lista', 'retirar da lista',\n  'nao tenho interesse agora', 'por enquanto nao',\n  'no momento nao', 'agora nao', 'obrigado mas nao',\n  'obrigada mas nao', 'nao preciso agora'\n];\n\nlet semInteresse = false;\nfor (const p of palavrasSemInteresse) {\n  if (botaoNorm.includes(p) || msgNorm.includes(p)) {\n    semInteresse = true;\n    break;\n  }\n}\n\n// Regex para opt-out explícito padrão Meta\nif (botaoNorm === 'parar promocoes' || botaoNorm === 'cancelar inscricao') {\n  semInteresse = true;\n}\n\nconst interesse = !semInteresse;\nconst statusConversa = semInteresse ? 'sem_interesse' : 'interesse_confirmado';\n\nconst jaReativado = ctx.jaReativado || false;\nconst deveReativarCRM = interesse && !jaReativado;\n\nconst padroes = [\n  { regex: /apartament|casa|terreno|sala|lote|cobertura|studio|kitnet|sobrado|imovel|im[oó]vel|lancamento|lan[cç]amento|planta|dormit[oó]rio|quarto|suite|vaga/i, label: 'Tipo de imovel' },\n  { regex: /bairro|regi[aã]o|agua verde|batel|port[aã]o|ecoville|champagnat|juvev[eê]|bacacheri|boa vista|rebou[cç]as|bigorrilho|cabral|alto da gl[oó]ria|merc[eê]s|ah[uú]|santa felicidade|campo comprido|centro|tang[uá]a|pinheirinho|xaxim|boqueir[aã]o|cajuru|tarum[aã]|uberaba|santo in[aá]cio|s[aã]o braz|vila izabel|vista alegre|jardim|hugo lange/i, label: 'Regiao/bairro' },\n  { regex: /R\\$\\s*[\\d.,]+|\\d+[.,]?\\d*\\s*(mil|milh[aã]o|milh[oõ]es|reais|k|M)|faixa de|valor|or[cç]amento|investimento|investir|revenda/i, label: 'Faixa de valor' }\n];\n\nconst infosDetectadas = [];\nif (interesse) {\n  for (const p of padroes) {\n    if (p.regex.test(msgUsuario)) {\n      infosDetectadas.push(p.label + ': ' + msgUsuario.substring(0, 120));\n    }\n  }\n}\n\nconst infoImportante = infosDetectadas.join(' | ');\nconst deveAdicionarInteracao = interesse && jaReativado && infoImportante.length > 0;\n\nreturn [{ json: {\n  respostaIA: aiOutput,\n  telefone: ctx.telefone,\n  nomeContato: ctx.nomeContato,\n  leadIdCvcrm: ctx.leadIdCvcrm,\n  corretorId: ctx.corretorId,\n  empreendimentoId: ctx.empreendimentoId,\n  interesse,\n  statusConversa,\n  mensagemUsuario: ctx.chatInput,\n  deveReativarCRM,\n  deveAdicionarInteracao,\n  infoImportante\n} }];"
+          },
+          "id": "processar-resp",
+          "name": "Processar Resposta IA",
+          "position": [
+            2080,
+            304
+          ],
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2
+        },
+        {
+          "parameters": {
+            "method": "POST",
+            "url": "http://72.60.244.51:8080/message/sendText/sym-imoveis-oficial",
+            "sendHeaders": true,
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "apikey",
+                  "value": "keySYMIMOVEIS2026"
+                }
+              ]
+            },
+            "sendBody": true,
+            "specifyBody": "json",
+            "jsonBody": "={{ JSON.stringify({ number: $json.telefone, textMessage: { text: $json.respostaIA } }) }}",
+            "options": {}
+          },
+          "id": "enviar-whatsapp",
+          "name": "Enviar Resposta WhatsApp",
+          "position": [
+            2304,
+            304
+          ],
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "combinator": "and",
+              "conditions": [
+                {
+                  "id": "c1",
+                  "leftValue": "={{ $('Processar Resposta IA').first().json.deveReativarCRM }}",
+                  "operator": {
+                    "name": "filter.operator.equals",
+                    "operation": "equals",
+                    "type": "boolean"
+                  },
+                  "rightValue": true
+                }
+              ],
+              "options": {
+                "caseSensitive": true,
+                "leftValue": "",
+                "typeValidation": "strict",
+                "version": 1
+              }
+            },
+            "options": {}
+          },
+          "id": "if-interesse",
+          "name": "Interesse Detectado",
+          "position": [
+            2528,
+            304
+          ],
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2
+        },
+        {
+          "parameters": {
+            "method": "POST",
+            "url": "https://sym.cvcrm.com.br/api/v1/comercial/leads",
+            "sendHeaders": true,
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "name": "email",
+                  "value": "luan.tabaldi@symimoveis.com.br"
+                },
+                {
+                  "name": "token",
+                  "value": "caaf90738a994804bdb36a22905dcbabea8f81ad"
+                }
+              ]
+            },
+            "sendBody": true,
+            "specifyBody": "json",
+            "jsonBody": "={{ JSON.stringify((() => { const ctx = $('Processar Resposta IA').first().json; const empId = Number(ctx.empreendimentoId); const payload = { permitir_alteracao: true, reativar_lead: true, idsituacao: 2, nome: ctx.nomeContato, telefone: ctx.telefone, midia: 'ia-whatsapp', origem: 'Reativacao IA WhatsApp', interacoes: [{ tipo: 'A', descricao: 'Lead reativado via IA WhatsApp. Demonstrou interesse. Resposta do lead: ' + ctx.mensagemUsuario }] }; if (empId && !isNaN(empId)) { payload.idempreendimento = empId; } return payload; })()) }}",
+            "options": {}
+          },
+          "id": "registrar-crm",
+          "name": "Registrar no CRM",
+          "position": [
+            2752,
+            240
+          ],
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2
+        },
+        {
+          "parameters": {
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "apikey",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Authorization",
+                  "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "jsonBody": "={{ JSON.stringify({ p_telefone: $('Processar Resposta IA').first().json.telefone, p_lead_id: $('Processar Resposta IA').first().json.leadIdCvcrm || '', p_nome: $('Processar Resposta IA').first().json.nomeContato, p_status: $('Processar Resposta IA').first().json.statusConversa, p_interesse: $('Processar Resposta IA').first().json.interesse, p_resumo: $('Processar Resposta IA').first().json.infoImportante || null }) }}",
+            "method": "POST",
+            "options": {},
+            "sendBody": true,
+            "sendHeaders": true,
+            "specifyBody": "json",
+            "url": "https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/rpc/upsert_conversa_ia"
+          },
+          "id": "atualizar-supa",
+          "name": "Atualizar Supabase",
+          "position": [
+            3408,
+            480
+          ],
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "combinator": "and",
+              "conditions": [
+                {
+                  "id": "cv",
+                  "leftValue": "={{ $json.isVerification }}",
+                  "operator": {
+                    "operation": "equals",
+                    "type": "boolean"
+                  },
+                  "rightValue": true
+                }
+              ],
+              "options": {
+                "caseSensitive": true,
+                "leftValue": "",
+                "typeValidation": "strict",
+                "version": 1
+              }
+            },
+            "options": {}
+          },
+          "id": "if-verif",
+          "name": "Eh Verificacao",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "position": [
+            448,
+            208
+          ]
+        },
+        {
+          "parameters": {
+            "respondWith": "text",
+            "responseBody": "={{ $('Roteador Meta').first().json.challenge }}",
+            "options": {
+              "responseCode": 200
+            }
+          },
+          "id": "resp-challenge",
+          "name": "Responder Challenge",
+          "type": "n8n-nodes-base.respondToWebhook",
+          "typeVersion": 1.1,
+          "position": [
+            672,
+            112
+          ]
+        },
+        {
+          "parameters": {
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "apikey",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Authorization",
+                  "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "name": "Prefer",
+                  "value": "return=minimal"
+                }
+              ]
+            },
+            "jsonBody": "={{ JSON.stringify({ status_reativacao: 'Respondido', data_resposta: new Date().toISOString(), ultima_resposta_lead: $('Roteador Meta').first().json.messageText }) }}",
+            "method": "PATCH",
+            "options": {},
+            "sendBody": true,
+            "sendHeaders": true,
+            "specifyBody": "json",
+            "url": "=https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?or=(telefone.eq.{{ $('Roteador Meta').first().json.telefone }},telefone.eq.{{ $('Roteador Meta').first().json.telefone.length === 13 ? $('Roteador Meta').first().json.telefone.slice(0, 4) + $('Roteador Meta').first().json.telefone.slice(5) : $('Roteador Meta').first().json.telefone }})"
+          },
+          "id": "update-lead-status",
+          "name": "Atualizar Status Lead",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "position": [
+            896,
+            304
+          ]
+        },
+        {
+          "parameters": {
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "apikey",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Authorization",
+                  "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "name": "Prefer",
+                  "value": "return=minimal"
+                }
+              ]
+            },
+            "jsonBody": "={{ JSON.stringify({ status_reativacao: 'Reativado' }) }}",
+            "method": "PATCH",
+            "options": {},
+            "sendBody": true,
+            "sendHeaders": true,
+            "specifyBody": "json",
+            "url": "=https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?or=(telefone.eq.{{ $('Processar Resposta IA').first().json.telefone }},telefone.eq.{{ $('Processar Resposta IA').first().json.telefone.length === 13 ? $('Processar Resposta IA').first().json.telefone.slice(0, 4) + $('Processar Resposta IA').first().json.telefone.slice(5) : $('Processar Resposta IA').first().json.telefone }})"
+          },
+          "id": "marcar-reativado",
+          "name": "Marcar Reativado Supabase",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "position": [
+            2992,
+            240
+          ]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "combinator": "and",
+              "conditions": [
+                {
+                  "id": "c2",
+                  "leftValue": "={{ $('Processar Resposta IA').first().json.deveAdicionarInteracao }}",
+                  "operator": {
+                    "name": "filter.operator.equals",
+                    "operation": "equals",
+                    "type": "boolean"
+                  },
+                  "rightValue": true
+                }
+              ],
+              "options": {
+                "caseSensitive": true,
+                "leftValue": "",
+                "typeValidation": "strict",
+                "version": 1
+              }
+            },
+            "options": {}
+          },
+          "id": "if-add-interacao",
+          "name": "Info Importante Detectada",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "position": [
+            2544,
+            688
+          ]
+        },
+        {
+          "parameters": {
+            "method": "POST",
+            "url": "https://sym.cvcrm.com.br/api/v1/comercial/leads",
+            "sendHeaders": true,
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "name": "email",
+                  "value": "luan.tabaldi@symimoveis.com.br"
+                },
+                {
+                  "name": "token",
+                  "value": "caaf90738a994804bdb36a22905dcbabea8f81ad"
+                }
+              ]
+            },
+            "sendBody": true,
+            "specifyBody": "json",
+            "jsonBody": "={{ JSON.stringify({ permitir_alteracao: true, telefone: $('Processar Resposta IA').first().json.telefone, interacoes: [{ tipo: 'A', descricao: '[IA] ' + $('Processar Resposta IA').first().json.infoImportante }] }) }}",
+            "options": {}
+          },
+          "id": "add-interacao-crm",
+          "name": "Adicionar Interacao CRM",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "position": [
+            2752,
+            672
+          ]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "combinator": "and",
+              "conditions": [
+                {
+                  "id": "cp1",
+                  "leftValue": "={{ $json.tipoCampanha }}",
+                  "operator": {
+                    "operation": "equals",
+                    "type": "string"
+                  },
+                  "rightValue": "prospeccao"
+                }
+              ],
+              "options": {
+                "caseSensitive": true,
+                "leftValue": "",
+                "typeValidation": "strict",
+                "version": 2
+              }
+            },
+            "options": {}
+          },
+          "id": "6cefcbe7-33aa-4fba-830a-44175f2d8751",
+          "name": "Prospeccao?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "position": [
+            1504,
+            304
+          ]
+        },
+        {
+          "parameters": {
+            "options": {}
+          },
+          "id": "43af00ad-26db-477d-a569-a0b5ba13ab62",
+          "name": "Gemini Prospeccao",
+          "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+          "typeVersion": 1,
+          "position": [
+            1760,
+            688
+          ],
+          "credentials": {
+            "googlePalmApi": {
+              "id": "CbXznqtnJPDx7WqX",
+              "name": "Google Gemini (PaLM) API"
+            }
+          }
+        },
+        {
+          "parameters": {
+            "sessionIdType": "customKey",
+            "sessionKey": "=prosp_{{ $('Preparar Contexto').first().json.sessionId }}",
+            "contextWindowLength": 10
+          },
+          "id": "cea75c3a-325c-4d95-b67b-7c72d727debd",
+          "name": "Memoria Prospeccao",
+          "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+          "typeVersion": 1.3,
+          "position": [
+            1856,
+            848
+          ]
+        },
+        {
+          "parameters": {
+            "promptType": "define",
+            "text": "={{ $json.chatInput }}",
+            "options": {
+              "systemMessage": "=Voce e a Ana Paula, da Sym Imoveis em Curitiba. Voce mandou uma oferta pro lead sobre:\n\n{{ $json.imovelInteresse }}\n\nEle respondeu e voce ta dando sequencia.\n\nSeu trabalho: confirmar se tem interesse, pegar o melhor horario pro consultor chamar ele aqui no WhatsApp, e encerrar. Voce nao sabe detalhes do produto, preco, planta, condicao de pagamento, nada disso. Quem sabe e o consultor.\n\nA conversa ideal dura 2 a 3 mensagens. Nao mais que isso.\n\n---\n\nO lead respondeu: {{ $json.botaoResposta }}\n\nSe ele demonstrou interesse ou curiosidade:\n- Agradece rapido, sem exagero\n- Fala que vai passar pro consultor que manja tudo desse empreendimento\n- Pergunta qual horario e bom pro consultor chamar ele aqui\n- Quando ele der o horario, confirma e encerra\n\nSe ele perguntou algo tecnico (preco, metragem, planta, unidades, financiamento):\n- Nao responde. Fala que o consultor passa isso certinho e que vai encaminhar\n- Encerra\n\nSe ele demonstrou desinteresse ou pediu pra nao receber mais:\n- Pede desculpa rapido, agradece e encerra\n- Nao insiste\n\nSe o lead der abertura na conversa e falar espontaneamente sobre o que busca (pra morar, investir, tamanho, regiao), aproveita e anota. Isso enriquece o atendimento do corretor. Mas nao force essas perguntas. So pega se vier naturalmente.\n\n---\n\nRegras:\n- Maximo 2 frases por mensagem\n- Use o nome ({{ $json.nomeContato }}) so na primeira mensagem\n- 1 emoji no maximo, e so se encaixar\n- Varie as frases. Nao repita estrutura\n- Fale como gente de verdade no WhatsApp. Nada de textao, lista ou topico\n- Nunca diga que e IA ou assistente\n- Nunca invente dado sobre o produto\n- Nunca mande link, endereco ou documento\n- Se falar de aluguel: 'pra locacao o canal e locacao@symimoveis.com.br'\n- Se fugir do assunto, traz de volta ou encerra tranquilo\n"
+            }
+          },
+          "id": "32cfd30e-3db6-425c-a7c6-de2eb5492875",
+          "name": "Agente Prospeccao",
+          "type": "@n8n/n8n-nodes-langchain.agent",
+          "typeVersion": 2,
+          "position": [
+            1760,
+            464
+          ],
+          "retryOnFail": true,
+          "maxTries": 5,
+          "waitBetweenTries": 5000
+        },
+        {
+          "parameters": {
+            "method": "POST",
+            "url": "https://sym.cvcrm.com.br/api/v1/comercial/leads",
+            "authentication": "genericCredentialType",
+            "genericAuthType": "httpCustomAuth",
+            "sendHeaders": true,
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "specifyBody": "json",
+            "jsonBody": "={{ JSON.stringify({ permitir_alteracao: true, idsituacao: 3, telefone: $('Processar Resposta IA').first().json.telefone, interacoes: [{ tipo: 'A', descricao: '[IA] Lead optou por nao ser contatado. Resposta: ' + $('Processar Resposta IA').first().json.mensagemUsuario }] }) }}",
+            "options": {}
+          },
+          "id": "manter-descartado",
+          "name": "Manter Descartado no CRM",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "position": [
+            2752,
+            400
+          ],
+          "credentials": {
+            "httpCustomAuth": {
+              "id": "ydp9y6ZaLtz5wbfE",
+              "name": "CV CRM - Sym Imóveis"
+            }
+          },
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "apikey",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Authorization",
+                  "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "jsonBody": "={{ JSON.stringify({ p_telefone: $('Processar Resposta IA').first().json.telefone, p_lead_id: $('Processar Resposta IA').first().json.leadIdCvcrm || '', p_nome: $('Processar Resposta IA').first().json.nomeContato, p_status: $('Processar Resposta IA').first().json.statusConversa, p_interesse: $('Processar Resposta IA').first().json.interesse, p_resumo: $('Processar Resposta IA').first().json.infoImportante || 'Lead demonstrou interesse' }) }}",
+            "method": "POST",
+            "options": {},
+            "sendBody": true,
+            "sendHeaders": true,
+            "specifyBody": "json",
+            "url": "https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/rpc/upsert_conversa_ia"
+          },
+          "id": "salvar-interessados",
+          "name": "Salvar Interessados Supabase",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "position": [
+            3216,
+            672
+          ],
+          "onError": "continueRegularOutput"
+        },
+        {
+          "id": "salvar-historico",
+          "name": "Salvar Histórico Supabase",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "position": [
+            2528,
+            480
+          ],
+          "parameters": {
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "apikey",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Authorization",
+                  "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "jsonBody": "={{ JSON.stringify((() => { const leadData = $('Buscar Lead Supabase').first().json; const lead = Array.isArray(leadData) ? leadData[0] : leadData; const oldHistory = Array.isArray(lead?.historico_mensagens) ? lead.historico_mensagens : []; const ctx = $('Preparar Contexto').first().json; const resp = $('Processar Resposta IA').first().json; const newHistory = [...oldHistory]; if (ctx.chatInput) { newHistory.push({ mensagem: ctx.chatInput, remetente: 'lead', timestamp: new Date().toISOString() }); } if (resp.respostaIA) { newHistory.push({ mensagem: resp.respostaIA, remetente: 'ia', timestamp: new Date().toISOString() }); } return { historico_mensagens: newHistory }; })()) }}",
+            "method": "PATCH",
+            "options": {},
+            "sendBody": true,
+            "sendHeaders": true,
+            "specifyBody": "json",
+            "url": "={{ \"https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?id=eq.\" + ($('Buscar Lead Supabase').first().json[0]?.id || $('Buscar Lead Supabase').first().json?.id) }}"
+          }
+        }
+      ],
+      "connections": {
+        "Agente IA Ana Paula": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Processar Resposta IA",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Buscar Lead Supabase": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Preparar Contexto",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Eh Verificacao": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Responder Challenge",
+                "type": "main"
+              }
+            ],
+            [
+              {
+                "index": 0,
+                "node": "Responder OK",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Enviar Resposta WhatsApp": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Interesse Detectado",
+                "type": "main"
+              },
+              {
+                "node": "Info Importante Detectada",
+                "type": "main",
+                "index": 0
+              },
+              {
+                "node": "Salvar Histórico Supabase",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Google Gemini": {
+          "ai_languageModel": [
+            [
+              {
+                "index": 0,
+                "node": "Agente IA Ana Paula",
+                "type": "ai_languageModel"
+              }
+            ]
+          ]
+        },
+        "Interesse Detectado": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Registrar no CRM",
+                "type": "main"
+              }
+            ],
+            [
+              {
+                "node": "Manter Descartado no CRM",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Memoria Conversa": {
+          "ai_memory": [
+            [
+              {
+                "index": 0,
+                "node": "Agente IA Ana Paula",
+                "type": "ai_memory"
+              }
+            ]
+          ]
+        },
+        "Processar Resposta IA": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Enviar Resposta WhatsApp",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Registrar no CRM": {
+          "main": [
+            [
+              {
+                "node": "Marcar Reativado Supabase",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Responder OK": {
+          "main": [
+            [
+              {
+                "node": "Atualizar Status Lead",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Roteador Meta": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Eh Verificacao",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Webhook WhatsApp": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Roteador Meta",
+                "type": "main"
+              }
+            ],
+            [
+              {
+                "index": 0,
+                "node": "Roteador Meta",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Atualizar Status Lead": {
+          "main": [
+            [
+              {
+                "node": "Buscar Lead Supabase",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Marcar Reativado Supabase": {
+          "main": [
+            [
+              {
+                "node": "Atualizar Supabase",
+                "type": "main",
+                "index": 0
+              },
+              {
+                "node": "Salvar Interessados Supabase",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Info Importante Detectada": {
+          "main": [
+            [
+              {
+                "node": "Adicionar Interacao CRM",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Adicionar Interacao CRM": {
+          "main": [
+            [
+              {
+                "node": "Atualizar Supabase",
+                "type": "main",
+                "index": 0
+              },
+              {
+                "node": "Salvar Interessados Supabase",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Preparar Contexto": {
+          "main": [
+            [
+              {
+                "node": "Prospeccao?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Prospeccao?": {
+          "main": [
+            [
+              {
+                "node": "Agente Prospeccao",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Agente IA Ana Paula",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Agente Prospeccao": {
+          "main": [
+            [
+              {
+                "node": "Processar Resposta IA",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Gemini Prospeccao": {
+          "ai_languageModel": [
+            [
+              {
+                "node": "Agente Prospeccao",
+                "type": "ai_languageModel",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Memoria Prospeccao": {
+          "ai_memory": [
+            [
+              {
+                "node": "Agente Prospeccao",
+                "type": "ai_memory",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Manter Descartado no CRM": {
+          "main": [
+            [
+              {
+                "node": "Atualizar Supabase",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Salvar Interessados Supabase": {
+          "main": [
+            [
+              {
+                "node": "Atualizar Supabase",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      },
+      "authors": "Luan Tabaldi",
+      "name": null,
+      "description": null,
+      "autosaved": false,
+      "workflowPublishHistory": [
+        {
+          "createdAt": "2026-07-20T19:22:29.585Z",
+          "id": 857,
+          "workflowId": "vhyNPEZjOD9JMA8h",
+          "versionId": "ea1aedab-2e64-4985-85dc-b146d977c9b8",
+          "event": "deactivated",
+          "userId": "2692e6d8-5c6b-4f11-8fe3-2e84c21f27ee"
+        },
+        {
+          "createdAt": "2026-07-20T19:22:29.613Z",
+          "id": 858,
+          "workflowId": "vhyNPEZjOD9JMA8h",
+          "versionId": "ea1aedab-2e64-4985-85dc-b146d977c9b8",
+          "event": "activated",
+          "userId": "2692e6d8-5c6b-4f11-8fe3-2e84c21f27ee"
+        },
+        {
+          "createdAt": "2026-07-20T19:22:29.810Z",
+          "id": 859,
+          "workflowId": "vhyNPEZjOD9JMA8h",
+          "versionId": "ea1aedab-2e64-4985-85dc-b146d977c9b8",
+          "event": "deactivated",
+          "userId": "2692e6d8-5c6b-4f11-8fe3-2e84c21f27ee"
+        },
+        {
+          "createdAt": "2026-07-20T19:22:29.942Z",
+          "id": 860,
+          "workflowId": "vhyNPEZjOD9JMA8h",
+          "versionId": "ea1aedab-2e64-4985-85dc-b146d977c9b8",
+          "event": "activated",
+          "userId": "2692e6d8-5c6b-4f11-8fe3-2e84c21f27ee"
+        }
+      ]
+    }
+  }
+}

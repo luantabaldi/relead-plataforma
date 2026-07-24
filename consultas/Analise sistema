@@ -1,0 +1,301 @@
+# Análise do Schema Supabase - Projeto Salva Lead
+
+Este documento apresenta a estrutura atual do banco de dados no Supabase, mapeada em 14/05/2026, incluindo tipos de dados, chaves e exemplos reais encontrados nas tabelas.
+
+## 1. Mapeamento de Tabelas e Colunas
+
+### 1.1. Tabela: `leads_reativacao`
+
+Esta é a tabela central que controla o histórico de disparos e o status de cada lead no funil de reativação.
+
+| Coluna | Tipo | Notas |
+| :--- | :--- | :--- |
+| `id` | `uuid` | Chave Primária (PK) |
+| `lead_id_cvcrm` | `varchar` | ID de referência no CV CRM |
+| `telefone` | `varchar` | Número do lead (formato 55...) |
+| `status_reativacao` | `varchar` | **Status do Envio**: `Enviado`, `Respondido`, `Reativado`, `Erro no Disparo` |
+| `data_envio` | `timestamp` | Data do disparo inicial |
+| `data_resposta` | `timestamp` | Data da última resposta detectada |
+| `mensagem_enviada` | `text` | Template e parâmetros enviados |
+| `ultima_resposta_lead` | `text` | Texto bruto da última resposta |
+| `historico_mensagens` | `jsonb` | Log completo da conversa em formato JSON |
+| `tipo_campanha` | `text` | **Enum de Lógica**: `reativacao`, `prospeccao` |
+| `nome_lead` | `varchar` | Nome completo do lead |
+
+### 1.2. Tabela: `conversas_ia`
+
+Tabela utilizada pelo Agente IA para gerenciar o contexto da conversa e a detecção de interesse.
+
+| Coluna | Tipo | Notas |
+| :--- | :--- | :--- |
+| `id` | `uuid` | Chave Primária (PK) |
+| `telefone` | `varchar` | Chave Única (Unique) |
+| `status_conversa` | `varchar` | `ativa`, `interesse_confirmado`, `sem_interesse` |
+| `interesse_detectado` | `boolean` | Flag de qualificação (True/False) |
+| `resumo_interesse` | `text` | Resumo gerado pela IA sobre o que o lead busca |
+| `imovel_interesse` | `varchar` | Nome do empreendimento/imóvel citado |
+
+### 1.3. Tabelas de Suporte
+
+* **`logs_workflow`**: Registra eventos técnicos do n8n para auditoria.
+* **`staging_jobs`**: Relacionada ao módulo de Staging IA (geração de imagens), com FK para `auth.users`.
+* **`leads_recepcao`**: Estrutura pronta para novos leads, atualmente sem dados.
+
+---
+
+## 2. Identificação de Enums e Chaves
+
+### "Enums" de Lógica (Campos de Status)
+
+Embora definidos como `varchar` ou `text`, os seguintes campos operam como enums no código:
+
+1. **`status_reativacao`**:
+    * `Enviado`: Mensagem saiu do sistema.
+    * `Respondido`: O lead mandou qualquer mensagem de volta.
+    * `Reativado`: Lead qualificado e enviado ao CRM.
+    * `Erro no Disparo`: Falha técnica no envio.
+    * `Pausado (Horário Excedido)`: Bloqueado pela trava de segurança noturna.
+2. **`status_conversa`**:
+    * `interesse_confirmado`: Lead quer atendimento.
+    * `sem_interesse`: Lead pediu opt-out ou não tem interesse.
+
+### Chaves Estrangeiras (Relações)
+
+* **`staging_jobs.user_id`** -> `auth.users.id`: Vincula jobs de imagem ao usuário autenticado.
+* **`leads_reativacao.lead_id_cvcrm`**: Chave de integração com a API externa do CV CRM.
+
+---
+
+## 3. Amostragem de Dados (3 Linhas de Exemplo)
+
+### Tabela: `leads_reativacao`
+
+| nome_lead | telefone | status_reativacao | data_envio | mensagem_enviada |
+| :--- | :--- | :--- | :--- | :--- |
+| Luan Tabaldi | 5541991156633 | Enviado | 2026-04-29 | Template: nps_loockwood |
+| João Figueiredo | 5541998447040 | Enviado | 2026-04-29 | Template: nps_loockwood |
+| Karolaine | 554195947808 | Enviado | 2026-04-29 | Template: nps_loockwood |
+
+### Tabela: `conversas_ia`
+
+| nome_lead | status_conversa | interesse_detectado | telefone |
+| :--- | :--- | :--- | :--- |
+| Kelvin | interesse_confirmado | true | 5541996988673 |
+| Junior | sem_interesse | false | 5541999024844 |
+| Naty | interesse_confirmado | true | 5541997678863 |
+
+---
+
+## 4. Análise de Workflows N8N
+
+Mapeamento técnico dos fluxos de automação, focado em escrita de dados e lógica de decisão.
+
+### 4.1. Workflow: Salva Lead — 3. Disparo Manual Planilha
+**ID:** `nOqjQMPHjDRZM6WZ`
+
+#### Nós que Gravam Dados:
+*   **Supabase (`wk3-supa-insert`)**: Insere o registro do envio na tabela `leads_reativacao`.
+*   **Google Sheets (`wk3-update-sheet`)**: Atualiza as colunas `status` e `data_envio` na planilha original.
+
+#### Nós de Decisão:
+*   **`wk3-check-pendente` (If)**: Filtra apenas leads com status "Pendente".
+*   **`wk3-check-novo` (If)**: Deduplicação consultando o histórico no Supabase.
+*   **`wk3-prep-payload` (Code)**: Implementa a **Trava de Horário Comercial** (07:00-21:30).
+
+---
+
+### 4.2. Workflow: Salva Lead — 2. Atendimento IA
+**ID:** `vhyNPEZjOD9JMA8h`
+
+#### Nós que Gravam Dados:
+*   **Supabase (`update-lead-status`)**: Atualiza para `Respondido` no recebimento do Webhook.
+*   **Supabase (`marcar-reativado`)**: Atualiza para `Reativado` após confirmação de interesse.
+*   **Supabase (`atualizar-supa`)**: Salva o resumo da conversa gerado pela IA.
+*   **CV CRM (`registrar-crm`)**: Reativa o lead (situação 2) e adiciona a interação técnica.
+*   **Google Sheets (`salvar-interessados`)**: Log de backup na aba de "Interessados".
+
+#### Nós de Decisão:
+*   **`Prospeccao?` (If)**: Roteia entre o prompt de Reativação ou Prospecção Ativa.
+*   **`processar-resp` (Code)**: Aplica o **Dicionário de Desinteresse** (opt-outs).
+*   **`if-interesse` (If)**: Filtro final antes de enviar o lead para o CRM.
+
+---
+
+### 4.3. Workflow: Salva Lead — 1. Prospecção Ativa
+**ID:** `5iD0fqcBQQi4mOMO`
+
+#### Nós que Gravam Dados:
+*   **Supabase (`supa-insert`)**: Registra a tentativa de prospecção agendada.
+*   **CV CRM (`crm-register`)**: Log de envio de NPS/Reativação no perfil do lead.
+
+#### Nós de Decisão:
+*   **`if-new-lead` (If)**: Garante que o lead não está sendo prospectado repetitivamente.
+
+---
+
+## 5. Mapeamento de Dados (Data Flow)
+
+| Campo Origem | Destino | Tabela/Aba | Trigger |
+| :--- | :--- | :--- | :--- |
+| `telefone` | Supabase | `leads_reativacao` | Envio Template |
+| `messageText` | Supabase | `leads_reativacao` | Resposta Lead |
+| `aiOutput` | Supabase | `conversas_ia` | Finalização IA |
+| `resumoIA` | CV CRM | Interações | Lead Qualificado |
+| `rowNumber` | Google Sheets | Página1 | Pós-Envio |
+
+---
+
+## 6. Análise de Maturidade para Métricas
+
+Mapeamento do que já pode ser medido e o que precisa de ajustes técnicos.
+
+### 6.1. Já dá para medir (Dados existentes)
+*   **Taxa de Sucesso de Envio**: Percentual de leads com status 'Enviado'.
+*   **Taxa de Resposta Bruta**: Percentual de leads que mudaram para 'Respondido' ou 'Reativado'.
+*   **Taxa de Qualificação (IA)**: Percentual de `interesse_detectado = true` sobre o total de conversas.
+*   **Performance por Campanha**: Comparativo entre `reativacao` e `prospeccao`.
+*   **Efetividade por Produto**: Ranking de interesse baseado no `empreendimento_nome`.
+
+### 6.2. Precisaria de Ajuste (Dados ausentes ou incompletos)
+*   **Taxa de Entrega e Leitura**: Exige a ativação dos Webhooks de status (`delivered` e `read`) da Meta.
+*   **CTR de Botões Específicos**: Exige um campo estruturado para gravar qual botão foi clicado (hoje o dado está diluído no texto da mensagem).
+*   **Motivos de Perda Categorizados**: Exige que a IA classifique o desinteresse em categorias (ex: "Já comprou", "Preço Alto") em vez de apenas texto livre.
+
+---
+
+## 7. Modelo de Métricas Proposto
+
+Sugestão de indicadores para o Dashboard de Gestão.
+
+### 7.1. Métricas de Disparo (Operacional)
+| Métrica | Cálculo | Localização do Dado | Prioridade |
+| :--- | :--- | :--- | :--- |
+| **Volume de Disparos** | Contagem total de registros | `leads_reativacao` | Alta |
+| **Taxa de Erro Técnico** | (Erro / Total Tentativas) | `leads_reativacao.status_reativacao` | Alta |
+| **Bloqueios de Horário** | Contagem de 'Pausado' | `leads_reativacao.status_reativacao` | Média |
+| **Taxa de Entrega** | (Entregues / Enviados) | **Não existe hoje** (Precisa Webhook) | Alta |
+
+### 7.2. Métricas de Engajamento (Marketing)
+| Métrica | Cálculo | Localização do Dado | Prioridade |
+| :--- | :--- | :--- | :--- |
+| **Taxa de Resposta** | (Respondidos / Enviados) | `leads_reativacao.status_reativacao` | Alta |
+| **Taxa de Abertura (Read)** | (Lidos / Entregues) | **Não existe hoje** (Precisa Webhook) | Média |
+| **Taxa de Opt-out** | (Sem Interesse / Respondidos) | `conversas_ia.status_conversa` | Alta |
+
+### 7.3. Métricas da IA (Conversação)
+| Métrica | Cálculo | Localização do Dado | Prioridade |
+| :--- | :--- | :--- | :--- |
+| **Qualificação IA** | (Interesse / Total Analisados) | `conversas_ia.interesse_detectado` | Alta |
+| **Leads Encaminhados** | Contagem de registros no CRM | `conversas_ia.registrado_crm` | Alta |
+| **Resumo de Perfil** | Agrupamento de `resumo_interesse` | `conversas_ia.resumo_interesse` | Média |
+
+### 7.4. Métricas de Conversão (Negócio)
+| Métrica | Cálculo | Localização do Dado | Prioridade |
+| :--- | :--- | :--- | :--- |
+| **Conversão por Campanha** | (Interessados / Total) | `leads_reativacao.tipo_campanha` | Alta |
+| **ROI / Vendas Reais** | (Vendas / Leads Reativados) | **Não existe hoje** (Precisa sync CRM) | Baixa |
+
+---
+
+## 8. Auditoria de Qualidade de Dados
+
+Resultados da auditoria realizada em 14/05/2026 para validação de métricas.
+
+### 8.1. Volumes Totais
+*   **`leads_reativacao`**: 1.363 registros.
+*   **`conversas_ia`**: 263 registros.
+
+### 8.2. Análise de Preenchimento (Null Scan)
+| Tabela | Campo | Registros Nulos | % de Nulos | Status de Qualidade |
+| :--- | :--- | :--- | :--- | :--- |
+| `leads_reativacao` | `data_resposta` | 1.098 | 80,5% | Esperado (Leads que não respondem) |
+| `leads_reativacao` | `historico_mensagens` | 0 | 0% | **Excelente** (Consistência Total) |
+| `conversas_ia` | `resumo_interesse` | 241 | 91,6% | **Atenção** (Baixa extração da IA) |
+| `conversas_ia` | `imovel_interesse` | 263 | 100% | **Crítico** (Campo não utilizado) |
+
+### 8.3. Integridade e Duplicidade
+*   **Telefones Duplicados (Internos):** 6 registros (0,4%). Risco irrelevante.
+*   **Intersecção de Dados:** 257 leads (97,7% das conversas possuem um registro de disparo correspondente).
+*   **Gap de Funil:** 2 leads (Interesse detectado mas não marcados como 'Reativado' na tabela de controle).
+
+### 8.4. Conclusão da Auditoria
+Os dados de **envio e resposta bruta** estão prontos para o Dashboard. No entanto, métricas de **detalhe do interesse** (qual imóvel o lead quer, resumo da busca) ainda dependem de ajustes no processamento da IA, dado o alto volume de campos nulos nessas colunas específicas.
+
+---
+
+## 9. Queries SQL de Performance (Métricas Alta Prioridade)
+
+Queries brutas para implementação no Dashboard do Supabase ou ferramentas de BI.
+
+### 9.1. Volume e Erros (Operacional)
+```sql
+-- Volume total por campanha
+SELECT tipo_campanha, count(*) as total FROM public.leads_reativacao GROUP BY 1;
+
+-- Taxa de Erro Técnico (%)
+SELECT (count(*) FILTER (WHERE status_reativacao = 'Erro no Disparo')::float / count(*)) * 100 as pct_erro 
+FROM public.leads_reativacao;
+```
+
+### 9.2. Engajamento e IA (Marketing)
+```sql
+-- Taxa de Resposta (Base: Enviados)
+SELECT (count(*) FILTER (WHERE status_reativacao IN ('Respondido', 'Reativado'))::float / 
+        count(*) FILTER (WHERE status_reativacao = 'Enviado')) * 100 as taxa_engajamento
+FROM public.leads_reativacao;
+
+-- Taxa de Qualificação IA (Base: Conversas Iniciadas)
+SELECT (count(*) FILTER (WHERE interesse_detectado = true)::float / count(*)) * 100 as taxa_qualificacao 
+FROM public.conversas_ia;
+```
+
+### 9.3. Conversão e Opt-out (Negócio)
+```sql
+-- Taxa de Opt-out (Sem Interesse)
+SELECT (count(*) FILTER (WHERE status_conversa = 'sem_interesse')::float / count(*)) * 100 as taxa_optout 
+FROM public.conversas_ia;
+
+-- Conversão Final por Campanha
+SELECT tipo_campanha, (count(*) FILTER (WHERE status_reativacao = 'Reativado')::float / count(*)) * 100 as conversao_final
+FROM public.leads_reativacao GROUP BY 1;
+```
+
+### 9.4. Observações Técnicas
+*   **JOINs:** Atualmente não são necessários para as métricas principais, garantindo alta performance.
+*   **Risco de Distorção:** A métrica de **Conversão Final** depende 100% do sucesso do nó `marcar-reativado` no n8n. Se o CRM reativar o lead mas o n8n falhar ao atualizar o Supabase, o dado ficará subnotificado.
+*   **Diferença de Base:** Sempre use `conversas_ia` para métricas de qualidade de conversa e `leads_reativacao` para métricas de funil de envio.
+
+---
+
+## 10. Estratégia de Visualização e BI
+
+Direcionamento para a construção da camada de interface e dashboards.
+
+### 10.1. Ferramentas Compatíveis (via PostgreSQL)
+*   **Looker Studio:** Gratuito, ideal para apresentações. Conecta via porta 5432 do Supabase.
+*   **Metabase:** Melhor usabilidade para gestão comercial. Permite filtros dinâmicos intuitivos.
+*   **Supabase Reports:** Nativo, ideal para métricas rápidas de monitoramento técnico.
+*   **Retool:** Ideal caso precise de uma interface administrativa (ex: botão de disparar manualmente).
+
+### 10.2. Arquitetura de Dados: Views vs BI
+Recomendamos a criação de **DATABASE VIEWS** no Supabase para:
+1.  **Centralizar a Lógica:** Definir o que é "Lead Quente" uma única vez no banco.
+2.  **Performance:** BI lê dados já processados.
+3.  **Segurança:** Ocultar campos sensíveis (tokens/chaves) das ferramentas de visualização.
+
+### 10.3. Filtros Indispensáveis para Gestão
+Para que o dashboard seja útil no dia a dia, deve permitir filtrar por:
+*   **Calendário:** Baseado em `data_envio`.
+*   **Canal/Origem:** Baseado em `tipo_campanha`.
+*   **Conversão:** Filtro por `interesse_detectado = true`.
+*   **Operador:** ID do corretor no CRM para medir distribuição.
+
+### 10.4. Recomendação de Praticidade
+Para o cenário atual da Sym Imóveis, o caminho mais rápido e sustentável é:
+1.  Criar 3 **Views** no Supabase (Operacional, Marketing, Conversão).
+2.  Conectar ao **Looker Studio** ou usar os **Reports nativos do Supabase** para a diretoria acompanhar o ROI.
+
+
+
+
+
