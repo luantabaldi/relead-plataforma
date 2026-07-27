@@ -1,11 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dashboard } from '../components/Dashboard';
 import { DispatchForm } from '../components/DispatchForm';
-import { Sidebar, TabType } from '../components/Sidebar';
+import { TopNav, TabType } from '../components/TopNav';
 import { Topbar } from '../components/Topbar';
 import { Icon } from '../components/Icon';
 import { Toast } from '../components/Toast';
 import { ActiveDispatchesModal } from '../components/ActiveDispatchesModal';
+import { CampaignLogsTab } from '../components/CampaignLogsTab';
+import { LeadsTab } from '../components/LeadsTab';
 import { useConversations } from '../hooks/useConversations';
 import { useHash } from '../hooks/useHash';
 import { useToast } from '../hooks/useToast';
@@ -15,13 +17,6 @@ import { usePausedDispatches } from '../hooks/usePausedDispatches';
 import { friendlyError } from '../lib/friendlyError';
 import { FilterOptions, CampaignType } from '../types';
 import { supabase } from '../lib/supabase';
-
-const CRUMB: Record<TabType, string> = {
-  acompanhar: 'Acompanhar',
-  disparar: 'Disparar',
-  analisar: 'Analisar',
-  gerenciar: 'Gerenciar',
-};
 
 interface DashboardPageProps {
   session?: any;
@@ -296,6 +291,22 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
 
   const handleResumeCampaign = async (campaignName: string, tipoCampanha: string) => {
     try {
+      // O n8n usa "template_id" (nome ou UUID) para buscar em templates_wpp
+      // se o template tem variáveis — sem isso ele assume "tem_variaveis: true"
+      // e manda um parâmetro que a Meta rejeita para templates sem variável.
+      // O nome do template já está salvo em cada lead desde o disparo original,
+      // mas esse mesmo campo é sobrescrito pelo n8n com o texto do erro/envio
+      // assim que o lead é processado — só quem nunca foi tocado (data_envio
+      // ainda nulo) garante o nome de template original e não um valor sujo.
+      const { data: sampleLead } = await supabase
+        .from('leads_reativacao')
+        .select('mensagem_enviada')
+        .eq('nome_campanha', campaignName)
+        .eq('status_reativacao', 'Pausado')
+        .is('data_envio', null)
+        .limit(1)
+        .maybeSingle();
+
       const { error } = await supabase
         .from('leads_reativacao')
         .update({ status_reativacao: 'Pendente' })
@@ -314,6 +325,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
             status: 'retomar',
             nome_campanha: campaignName,
             tipo_campanha: tipoCampanha,
+            template_id: sampleLead?.mensagem_enviada || '',
           }),
         });
 
@@ -428,16 +440,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
     const interessados = conversations.filter((c) => c.dispatch.status === 'interessado').length;
     const taxaResp = total ? Math.round((respondidos / total) * 100) : 0;
     const taxaInt = respondidos ? Math.round((interessados / respondidos) * 100) : 0;
-    return { total, respondidos, interessados, taxaResp, taxaInt };
+    const taxaIntDisparos = total ? Math.round((interessados / total) * 100) : 0;
+    return { total, respondidos, interessados, taxaResp, taxaInt, taxaIntDisparos };
   }, [conversations]);
 
   return (
     <div className="dash-app">
-      <Sidebar active={currentTab} manageSubTab={activeManageTab} onChange={(t, sub) => navigate(t, sub)} />
+      <div className="app-header">
+        <TopNav active={currentTab} manageSubTab={activeManageTab} onChange={(t, sub) => navigate(t, sub)} />
+        <Topbar syncing={isLoading} session={session} />
+      </div>
 
       <div className="dash-main">
-        <Topbar crumb={CRUMB[currentTab]} syncing={isLoading} session={session} />
-
         {/* ── Acompanhar — full-height master/detail ── */}
         {currentTab === 'acompanhar' && (
           <Dashboard
@@ -455,7 +469,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
           <div className="page thin-scroll">
             <div className="page-hero">
               <div>
-                <div className="crumb"><b>Campanhas</b>&nbsp;&nbsp;›&nbsp;&nbsp;Novo disparo</div>
                 <h2>Disparar <em>campanha</em></h2>
               </div>
             </div>
@@ -468,7 +481,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
           <div className="page thin-scroll">
             <div className="page-hero">
               <div>
-                <div className="crumb"><b>Configuração</b>&nbsp;&nbsp;›&nbsp;&nbsp;Dados da campanha</div>
                 <h2>Gerenciar <em>dados</em></h2>
                 <p className="t-caption" style={{ marginTop: 4 }}>Templates · Empreendimentos · Campanhas agendadas</p>
               </div>
@@ -1285,7 +1297,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
           <div className="page thin-scroll">
             <div className="page-hero">
               <div>
-                <div className="crumb"><b>Campanhas</b>&nbsp;&nbsp;›&nbsp;&nbsp;Desempenho</div>
                 <h2>Analisar <em>desempenho</em></h2>
               </div>
               <button
@@ -1465,12 +1476,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
               <>
                 {/* Resumo de Métricas */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-                  <StatCard label="Leads disparados" value={metrics.total} icon="megaphone" />
+                  <StatCard label="Leads disparados" value={metrics.total} icon="megaphone" tone="white" />
                   <StatCard label="Responderam" value={metrics.respondidos} icon="message-circle"
-                    note={`${metrics.taxaResp}% de resposta`} />
+                    note={`${metrics.taxaResp}% de resposta`} tone="soft" />
                   <StatCard label="Interessados" value={metrics.interessados} icon="thumbs-up"
-                    note={`${metrics.taxaInt}% dos que responderam`} />
-                  <StatCard label="Taxa de resposta" value={`${metrics.taxaResp}%`} icon="trending-up" />
+                    note={`${metrics.taxaInt}% dos que responderam`} tone="dark" />
+                  <StatCard label="Taxa de interessados" value={`${metrics.taxaIntDisparos}%`} icon="trending-up"
+                    note="dos leads disparados" tone="green" />
                 </div>
 
                 {conversations.length === 0 && (
@@ -1491,6 +1503,27 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* ── Histórico de Campanhas ── */}
+        {currentTab === 'logs' && (
+          <div className="page" style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: '100%' }}>
+            <div className="page-hero">
+              <div>
+                <h2>Histórico <em>de campanhas</em></h2>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <CampaignLogsTab visible={true} />
+            </div>
+          </div>
+        )}
+
+        {/* ── Base de Leads ── */}
+        {currentTab === 'leads' && (
+          <div className="page" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <LeadsTab />
           </div>
         )}
       </div>
@@ -1533,9 +1566,9 @@ const ManageCard: React.FC<{
 
 const StatCard: React.FC<{
   label: string; value: React.ReactNode; icon: React.ComponentProps<typeof Icon>['name'];
-  note?: string; accent?: boolean;
-}> = ({ label, value, icon, note, accent }) => (
-  <div className={'card' + (accent ? ' accent' : '')}>
+  note?: string; tone?: 'white' | 'soft' | 'dark' | 'green';
+}> = ({ label, value, icon, note, tone = 'white' }) => (
+  <div className={'card' + (tone === 'dark' ? ' accent' : tone === 'soft' ? ' soft' : tone === 'green' ? ' green-border' : '')}>
     <div className="label">
       <span>{label}</span>
       <span className="ic-circle"><Icon name={icon} size={16} /></span>
@@ -1543,7 +1576,7 @@ const StatCard: React.FC<{
     <div className="num tnum">{value}</div>
     {note && (
       <div className="delta">
-        <span className={accent ? '' : 'muted'}>{note}</span>
+        <span className={tone === 'dark' ? '' : 'muted'}>{note}</span>
       </div>
     )}
   </div>
@@ -1904,7 +1937,7 @@ const DonutChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
     interessado: 'var(--green-500)',
     sem_interesse: 'var(--red-500)',
     pausado: 'var(--amber-500)',
-    erro: '#7A1F18',
+    erro: '#991B1B',
   };
 
   const labels: Record<string, string> = {
