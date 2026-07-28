@@ -2,7 +2,7 @@ import React from 'react';
 import { Icon, IconName } from './Icon';
 import { ManageSubTab } from '../hooks/useHash';
 
-export type TabType = 'gerenciar' | 'disparar' | 'acompanhar' | 'analisar' | 'logs' | 'leads';
+export type TabType = 'gerenciar' | 'disparar' | 'acompanhar' | 'analisar' | 'logs' | 'leads' | 'kpis';
 
 interface NavEntry {
   id: TabType;
@@ -13,6 +13,7 @@ interface NavEntry {
 
 const ITEMS: NavEntry[] = [
   { id: 'analisar', label: 'Analisar', icon: 'bar-chart', section: 'operacao' },
+  { id: 'kpis', label: 'KPIs', icon: 'wallet', section: 'operacao' },
   { id: 'logs', label: 'Histórico', icon: 'clock', section: 'operacao' },
   { id: 'leads', label: 'Leads', icon: 'user', section: 'operacao' },
   { id: 'acompanhar', label: 'Acompanhar', icon: 'inbox', section: 'operacao' },

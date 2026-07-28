@@ -14,6 +14,7 @@ import { useToast } from '../hooks/useToast';
 import { useConfirm } from '../hooks/useConfirm';
 import { useActiveDispatches } from '../hooks/useActiveDispatches';
 import { usePausedDispatches } from '../hooks/usePausedDispatches';
+import { useMetaKpis, NumeroSaude, CustoPorDia, TemplateKpi } from '../hooks/useMetaKpis';
 import { friendlyError } from '../lib/friendlyError';
 import { FilterOptions, CampaignType } from '../types';
 import { supabase } from '../lib/supabase';
@@ -38,6 +39,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
 
   const [periodOption, setPeriodOption] = useState<'7d' | '30d' | '90d' | 'custom'>('30d');
 
+  // Período próprio da aba KPIs — deliberadamente separado de `filters`/`periodOption`
+  // acima, pois aquele state alimenta `useConversations` (aba Acompanhar); reaproveitá-lo
+  // aqui faria trocar o período dos KPIs re-disparar fetch de conversas.
+  const [kpiPeriodOption, setKpiPeriodOption] = useState<'7d' | '30d' | '90d' | 'custom'>('30d');
+  const [kpiPeriod, setKpiPeriod] = useState({
+    dataInicio: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    dataFim: new Date(),
+  });
+  const {
+    numero: numeroSaude, templates: templatesKpi, custoTotalUsd, custoPorDia,
+    totalRespondidos: kpiTotalRespondidos, totalReativados: kpiTotalReativados,
+    custoPorResposta, custoPorReativacao, isLoading: isLoadingKpis,
+  } = useMetaKpis(kpiPeriod);
+
   const {
     conversations, isLoading, handleAction, refetch, selectedDispatchId, setSelectedDispatchId,
     pendingAction, toast: acompanharToast, dismissToast: dismissAcompanharToast, confirmDialog: acompanharConfirmDialog,
@@ -55,7 +70,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
   const activePendingTotal = activeCampaigns.reduce((sum, c) => sum + c.pendente, 0);
 
   // WABA Templates states
-  const [templates, setTemplates] = useState<Array<{ id: string; nome: string; tipo: string; status_meta: string; tem_variaveis?: boolean }>>([]);
+  const [templates, setTemplates] = useState<Array<{ id: string; nome: string; tipo: string; status_meta: string; tem_variaveis?: boolean; categoria?: string; quality_score?: string; ultima_sincronizacao?: string }>>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<{ id?: string; nome: string; tipo: string; status_meta: string; tem_variaveis?: boolean } | null>(null);
 
@@ -198,49 +213,22 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
 
   const handleSaveTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingTemplate) return;
+    if (!editingTemplate || !editingTemplate.id) return;
 
     try {
-      if (!editingTemplate.nome.trim()) {
-        notify('err', 'Nome do template é obrigatório.');
-        return;
-      }
+      // Apenas 'tipo' e 'tem_variaveis' são editáveis à mão — nome/status_meta
+      // vêm da sincronização automática com a Meta e não devem ser digitados.
+      const { error } = await supabase
+        .from('templates_wpp')
+        .update({
+          tipo: editingTemplate.tipo,
+          tem_variaveis: editingTemplate.tem_variaveis !== false,
+        })
+        .eq('id', editingTemplate.id);
 
-      // Validar formato slug (apenas minúsculas e underscores)
-      const slugRegex = /^[a-z0-9_]+$/;
-      if (!slugRegex.test(editingTemplate.nome)) {
-        notify('err', 'O nome do template WABA deve conter apenas letras minúsculas, números e sublinhados (_). Ex: lee_dama_tower');
-        return;
-      }
+      if (error) throw error;
 
-      if (editingTemplate.id) {
-        // UPDATE
-        const { error } = await supabase
-          .from('templates_wpp')
-          .update({
-            nome: editingTemplate.nome,
-            tipo: editingTemplate.tipo,
-            status_meta: editingTemplate.status_meta,
-            tem_variaveis: editingTemplate.tem_variaveis !== false,
-          })
-          .eq('id', editingTemplate.id);
-
-        if (error) throw error;
-      } else {
-        // INSERT
-        const { error } = await supabase
-          .from('templates_wpp')
-          .insert({
-            nome: editingTemplate.nome,
-            tipo: editingTemplate.tipo,
-            status_meta: editingTemplate.status_meta,
-            tem_variaveis: editingTemplate.tem_variaveis !== false,
-          });
-
-        if (error) throw error;
-      }
-
-      notify('ok', editingTemplate.id ? 'Template atualizado.' : 'Template criado.');
+      notify('ok', 'Template atualizado.');
       setEditingTemplate(null);
       loadTemplates();
     } catch (err) {
@@ -569,18 +557,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                   <h3 className="t-h2" style={{ margin: 0, fontSize: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Icon name="file-text" size={20} /> Templates cadastrados
                   </h3>
-                  {!editingTemplate && (
-                    <button
-                      type="button"
-                      onClick={() => setEditingTemplate({ nome: '', tipo: 'prospeccao', status_meta: 'APPROVED', tem_variaveis: true })}
-                      className="btn primary"
-                    >
-                      <Icon name="plus" size={14} /> Novo template
-                    </button>
-                  )}
+                  <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)' }}>
+                    Sincronizado automaticamente com a Meta
+                  </span>
                 </div>
 
-                {/* Formulário de Template (Novo / Editar) */}
+                {/* Formulário de Edição — nome/status_meta vêm da Meta e são somente leitura */}
                 {editingTemplate && (
                   <div className="card" style={{ padding: 24, gap: 16, animation: 'fadeIn 0.2s ease-out' }}>
                     <style>{`
@@ -590,24 +572,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                       }
                     `}</style>
                     <h4 className="t-serif" style={{ fontSize: 18, margin: 0, color: 'var(--navy-700)' }}>
-                      {editingTemplate.id ? 'Editar template WABA' : 'Novo template WABA'}
+                      Editar template WABA
                     </h4>
 
                     <form onSubmit={handleSaveTemplate} style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 12 }}>
                       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                         <div className="field">
-                          <label htmlFor="templateNameInput">Nome (Meta Slug) *</label>
-                          <input
-                            id="templateNameInput"
-                            name="nome"
-                            type="text"
+                          <label>Nome (Meta Slug)</label>
+                          <div
                             className="input"
-                            placeholder="ex: lee_dama_tower"
-                            value={editingTemplate.nome}
-                            onChange={(e) => setEditingTemplate({ ...editingTemplate, nome: e.target.value })}
-                            autoComplete="off"
-                            required
-                          />
+                            style={{ display: 'flex', alignItems: 'center', color: 'var(--ink-50)', background: 'var(--paper-100)', cursor: 'not-allowed', fontFamily: 'var(--font-mono)' }}
+                            title="Vem da sincronização com a Meta — não pode ser editado"
+                          >
+                            {editingTemplate.nome}
+                          </div>
                         </div>
 
                         <div className="field">
@@ -626,20 +604,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                         </div>
 
                         <div className="field">
-                          <label htmlFor="templateStatusSelect">Status de homologação *</label>
-                          <select
-                            id="templateStatusSelect"
-                            name="status_meta"
+                          <label>Status de homologação</label>
+                          <div
                             className="input"
-                            value={editingTemplate.status_meta}
-                            onChange={(e) => setEditingTemplate({ ...editingTemplate, status_meta: e.target.value })}
-                            required
+                            style={{ display: 'flex', alignItems: 'center', color: 'var(--ink-50)', background: 'var(--paper-100)', cursor: 'not-allowed' }}
+                            title="Vem da sincronização com a Meta — não pode ser editado"
                           >
-                            <option value="APPROVED">Aprovado (APPROVED)</option>
-                            <option value="PENDING">Pendente (PENDING)</option>
-                            <option value="REJECTED">Rejeitado (REJECTED)</option>
-                            <option value="em_revisao">Em Revisão (em_revisao)</option>
-                          </select>
+                            {editingTemplate.status_meta === 'APPROVED'
+                              ? 'Aprovado (APPROVED)'
+                              : editingTemplate.status_meta === 'PENDING'
+                              ? 'Pendente (PENDING)'
+                              : editingTemplate.status_meta === 'REJECTED'
+                              ? 'Rejeitado (REJECTED)'
+                              : editingTemplate.status_meta}
+                          </div>
                         </div>
 
                         <div className="field">
@@ -714,23 +692,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                     </div>
                   ) : templates.length === 0 ? (
                     <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-200)' }}>
-                      <div style={{ marginBottom: 12 }}>Nenhum template cadastrado no Supabase.</div>
-                      <button
-                        type="button"
-                        onClick={() => setEditingTemplate({ nome: '', tipo: 'prospeccao', status_meta: 'APPROVED', tem_variaveis: true })}
-                        className="btn secondary"
-                        style={{ margin: '0 auto' }}
-                      >
-                        <Icon name="plus" size={14} /> Cadastrar primeiro template
-                      </button>
+                      Nenhum template sincronizado ainda. Templates aparecem aqui automaticamente após a
+                      sincronização diária com a Meta Graph API.
                     </div>
                   ) : (
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
                       <thead>
                         <tr style={{ background: 'var(--paper-100)', borderBottom: '1px solid var(--paper-200)' }}>
                           <th style={{ padding: '14px 20px', fontWeight: 600, color: 'var(--ink-100)' }}>Nome do template</th>
+                          <th style={{ padding: '14px 20px', fontWeight: 600, color: 'var(--ink-100)' }}>Categoria (Meta)</th>
                           <th style={{ padding: '14px 20px', fontWeight: 600, color: 'var(--ink-100)' }}>Tipo de campanha</th>
                           <th style={{ padding: '14px 20px', fontWeight: 600, color: 'var(--ink-100)' }}>Status de homologação</th>
+                          <th style={{ padding: '14px 20px', fontWeight: 600, color: 'var(--ink-100)' }}>Quality score</th>
+                          <th style={{ padding: '14px 20px', fontWeight: 600, color: 'var(--ink-100)' }}>Última sincronização</th>
                           <th style={{ padding: '14px 20px', fontWeight: 600, color: 'var(--ink-100)', width: 120 }}>Ações</th>
                         </tr>
                       </thead>
@@ -747,9 +721,24 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                               {t.nome}
                             </td>
                             <td style={{ padding: '14px 20px' }}>
-                              <span className={`chip ${t.tipo === 'reativacao' ? 'success' : 'info'}`} style={{ fontSize: 11 }}>
-                                {t.tipo === 'reativacao' ? 'Reativação' : 'Prospecção'}
+                              <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)' }}>
+                                {t.categoria || '—'}
                               </span>
+                            </td>
+                            <td style={{ padding: '14px 20px' }}>
+                              {t.tipo === 'nao_classificado' ? (
+                                <span
+                                  className="chip warning"
+                                  style={{ fontSize: 11 }}
+                                  title="Não classificado — não aparece no select de disparo até que 'Tipo de campanha' seja definido"
+                                >
+                                  Não classificado
+                                </span>
+                              ) : (
+                                <span className={`chip ${t.tipo === 'reativacao' ? 'success' : 'info'}`} style={{ fontSize: 11 }}>
+                                  {t.tipo === 'reativacao' ? 'Reativação' : 'Prospecção'}
+                                </span>
+                              )}
                             </td>
                             <td style={{ padding: '14px 20px' }}>
                               <span
@@ -769,6 +758,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                                   : t.status_meta === 'REJECTED'
                                   ? 'Rejeitado'
                                   : 'Em Revisão'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 20px' }}>
+                              <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)' }}>
+                                {t.quality_score && t.quality_score !== 'UNKNOWN' ? t.quality_score : '—'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 20px' }}>
+                              <span className="t-mono tnum" style={{ fontSize: 11, color: 'var(--ink-50)' }}>
+                                {t.ultima_sincronizacao
+                                  ? new Date(t.ultima_sincronizacao).toLocaleDateString('pt-BR')
+                                  : '—'}
                               </span>
                             </td>
                             <td style={{ padding: '14px 20px' }}>
@@ -1506,6 +1507,240 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
           </div>
         )}
 
+        {/* ── KPIs (saúde, templates, custo) ── */}
+        {currentTab === 'kpis' && (
+          <div className="page thin-scroll">
+            <div className="page-hero">
+              <div>
+                <h2>KPIs <em>de saúde, templates e custo</em></h2>
+              </div>
+            </div>
+
+            {/* Painel de Filtro de Período */}
+            <div className="card" style={{ padding: 18, borderRadius: 16, marginBottom: 20 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <Icon name="filter" size={16} style={{ color: 'var(--navy-600)' }} />
+                  <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--navy-700)' }}>Período do custo:</span>
+                </div>
+                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--paper-100)', padding: 4, borderRadius: 10 }}>
+                    {([
+                      { id: '7d', label: '7 dias', days: 7 },
+                      { id: '30d', label: '30 dias', days: 30 },
+                      { id: '90d', label: '90 dias', days: 90 },
+                      { id: 'custom', label: 'Customizado', days: 0 },
+                    ] as const).map((opt) => {
+                      const active = kpiPeriodOption === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => {
+                            setKpiPeriodOption(opt.id);
+                            if (opt.days > 0) {
+                              setKpiPeriod({
+                                dataInicio: new Date(Date.now() - opt.days * 24 * 60 * 60 * 1000),
+                                dataFim: new Date(),
+                              });
+                            }
+                          }}
+                          className="t-mono"
+                          style={{
+                            background: active ? '#fff' : 'none',
+                            border: 'none',
+                            padding: '6px 12px',
+                            borderRadius: 8,
+                            fontSize: 11,
+                            fontWeight: active ? 600 : 500,
+                            color: active ? 'var(--navy-700)' : 'var(--ink-50)',
+                            cursor: 'pointer',
+                            boxShadow: active ? '0 1px 4px rgba(15, 23, 42, 0.08)' : 'none',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {kpiPeriodOption === 'custom' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, animation: 'fadeIn 0.2s ease-out' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <label htmlFor="kpiDateStartInput" className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)', cursor: 'pointer' }}>De:</label>
+                        <input
+                          id="kpiDateStartInput"
+                          type="date"
+                          className="input tnum"
+                          style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8, height: 'auto', width: 'auto' }}
+                          value={kpiPeriod.dataInicio.toISOString().split('T')[0]}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setKpiPeriod({ ...kpiPeriod, dataInicio: new Date(e.target.value + 'T00:00:00') });
+                            }
+                          }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <label htmlFor="kpiDateEndInput" className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)', cursor: 'pointer' }}>Até:</label>
+                        <input
+                          id="kpiDateEndInput"
+                          type="date"
+                          className="input tnum"
+                          style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8, height: 'auto', width: 'auto' }}
+                          value={kpiPeriod.dataFim.toISOString().split('T')[0]}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setKpiPeriod({ ...kpiPeriod, dataFim: new Date(e.target.value + 'T23:59:59') });
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {isLoadingKpis ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: 12 }}>
+                <style>{`
+                  @keyframes skeleton-pulse {
+                    0%, 100% { opacity: 0.6; }
+                    50% { opacity: 0.35; }
+                  }
+                  .skeleton-pulse {
+                    animation: skeleton-pulse 1.5s infinite ease-in-out;
+                    background: var(--paper-100);
+                  }
+                  .skeleton-line {
+                    background: var(--paper-200);
+                    border-radius: 4px;
+                  }
+                `}</style>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="card skeleton-pulse" style={{ height: 110, padding: 20 }}>
+                      <div className="skeleton-line" style={{ width: '60%', height: 12, marginBottom: 12 }} />
+                      <div className="skeleton-line" style={{ width: '40%', height: 28 }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Saúde do número + Custo */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+                  <NumeroSaudeCard numero={numeroSaude} />
+                  <StatCard
+                    label="Custo total do período"
+                    value={`US$ ${custoTotalUsd.toFixed(2)}`}
+                    icon="wallet"
+                    tone="dark"
+                  />
+                  <StatCard
+                    label="Custo por resposta"
+                    value={kpiTotalRespondidos > 0 ? `US$ ${custoPorResposta.toFixed(3)}` : '—'}
+                    icon="message-circle"
+                    note={`${kpiTotalRespondidos} respostas no período`}
+                    tone="soft"
+                  />
+                  <StatCard
+                    label="Custo por reativação"
+                    value={kpiTotalReativados > 0 ? `US$ ${custoPorReativacao.toFixed(3)}` : '—'}
+                    icon="thumbs-up"
+                    note={`${kpiTotalReativados} interessados no período`}
+                    tone="green"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6" style={{ marginTop: 24 }}>
+                  <CustoPorDiaChart custoPorDia={custoPorDia} />
+                  <CustoPorTemplateChart templates={templatesKpi} />
+                </div>
+
+                {/* Tabela de templates aprovados vinculada ao uso real no disparo */}
+                <div className="card" style={{ padding: 0, overflow: 'hidden', marginTop: 24 }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--paper-200)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h4 className="t-serif" style={{ fontSize: 16, margin: 0, color: 'var(--navy-700)' }}>
+                      Templates aprovados
+                    </h4>
+                    <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)' }}>
+                      {templatesKpi.length} templates
+                    </span>
+                  </div>
+                  {templatesKpi.length === 0 ? (
+                    <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-200)' }}>
+                      Nenhum template sincronizado ainda.
+                    </div>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ background: 'var(--paper-100)', borderBottom: '1px solid var(--paper-200)' }}>
+                          <th style={{ padding: '12px 20px', fontWeight: 600, color: 'var(--ink-100)' }}>Nome</th>
+                          <th style={{ padding: '12px 20px', fontWeight: 600, color: 'var(--ink-100)' }}>Categoria</th>
+                          <th style={{ padding: '12px 20px', fontWeight: 600, color: 'var(--ink-100)' }}>Status</th>
+                          <th style={{ padding: '12px 20px', fontWeight: 600, color: 'var(--ink-100)' }}>Tipo de campanha</th>
+                          <th style={{ padding: '12px 20px', fontWeight: 600, color: 'var(--ink-100)', textAlign: 'right' }}>Disparos no período</th>
+                          <th style={{ padding: '12px 20px', fontWeight: 600, color: 'var(--ink-100)', textAlign: 'right' }}>Respondidos</th>
+                          <th style={{ padding: '12px 20px', fontWeight: 600, color: 'var(--ink-100)', textAlign: 'right' }}>Custo estimado</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {templatesKpi.map((t, idx) => (
+                          <tr
+                            key={t.id}
+                            style={{
+                              borderBottom: idx === templatesKpi.length - 1 ? 'none' : '1px solid var(--paper-200)',
+                              background: idx % 2 === 0 ? 'var(--paper-0)' : 'var(--paper-50)',
+                            }}
+                          >
+                            <td style={{ padding: '12px 20px', fontWeight: 600, color: 'var(--ink-50)', fontFamily: 'var(--font-mono)' }}>
+                              {t.nome}
+                            </td>
+                            <td style={{ padding: '12px 20px' }}>
+                              <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)' }}>{t.categoria || '—'}</span>
+                            </td>
+                            <td style={{ padding: '12px 20px' }}>
+                              <span
+                                className={`chip ${t.status_meta === 'APPROVED' ? 'success' : t.status_meta === 'PENDING' || t.status_meta === 'em_revisao' ? 'warning' : 'danger'}`}
+                                style={{ fontSize: 11 }}
+                              >
+                                {t.status_meta === 'APPROVED' ? 'Aprovado' : t.status_meta}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 20px' }}>
+                              {t.tipo === 'nao_classificado' ? (
+                                <span className="chip warning" style={{ fontSize: 11 }} title="Não aparece no select de disparo até ser classificado em Gerenciar → Templates">
+                                  Não classificado
+                                </span>
+                              ) : (
+                                <span className={`chip ${t.tipo === 'reativacao' ? 'success' : 'info'}`} style={{ fontSize: 11 }}>
+                                  {t.tipo === 'reativacao' ? 'Reativação' : 'Prospecção'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="tnum" style={{ padding: '12px 20px', textAlign: 'right' }}>{t.disparosNoPeriodo}</td>
+                            <td className="tnum" style={{ padding: '12px 20px', textAlign: 'right' }}>{t.respondidos}</td>
+                            <td className="tnum" style={{ padding: '12px 20px', textAlign: 'right' }}>
+                              {t.disparosNoPeriodo > 0 ? (
+                                <span title="Estimado: volume de disparos × tarifa da categoria — não é o valor exato do webhook da Meta">
+                                  ~US$ {t.custoEstimadoUsd.toFixed(2)}
+                                </span>
+                              ) : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* ── Histórico de Campanhas ── */}
         {currentTab === 'logs' && (
           <div className="page" style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: '100%' }}>
@@ -2050,6 +2285,195 @@ const DonutChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
           })}
         </div>
       </div>
+    </div>
+  );
+};
+
+const NumeroSaudeCard: React.FC<{ numero: NumeroSaude | null }> = ({ numero }) => {
+  if (!numero) {
+    return (
+      <div className="card">
+        <div className="label">
+          <span>Saúde do número</span>
+          <span className="ic-circle"><Icon name="phone" size={16} /></span>
+        </div>
+        <div className="num" style={{ fontSize: 15, color: 'var(--ink-50)' }}>Não sincronizado</div>
+      </div>
+    );
+  }
+
+  const rating = (numero.quality_rating || '').toUpperCase();
+  const chip = rating === 'GREEN' ? 'ok' : rating === 'YELLOW' ? 'warn' : rating === 'RED' ? 'err' : 'neutral';
+  const label = rating === 'GREEN' ? 'Boa' : rating === 'YELLOW' ? 'Atenção' : rating === 'RED' ? 'Crítica' : 'Desconhecida';
+
+  return (
+    <div className="card">
+      <div className="label">
+        <span>Saúde do número</span>
+        <span className="ic-circle"><Icon name="phone" size={16} /></span>
+      </div>
+      <div className="num" style={{ fontSize: 20 }}>
+        <span className={`chip ${chip}`}><span className="dot" />{label}</span>
+      </div>
+      <div className="delta">
+        <span className="muted">
+          {numero.messaging_limit_tier || 'sem limite informado'} · {numero.status || '—'}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+const CustoPorDiaChart: React.FC<{ custoPorDia: CustoPorDia[] }> = ({ custoPorDia }) => {
+  const width = 500;
+  const height = 200;
+  const paddingLeft = 48;
+  const paddingRight = 20;
+  const paddingTop = 20;
+  const paddingBottom = 30;
+  const chartWidth = width - paddingLeft - paddingRight;
+  const chartHeight = height - paddingTop - paddingBottom;
+
+  const maxVal = Math.max(...custoPorDia.map((d) => d.custo_usd), 0.1);
+
+  const points = custoPorDia.map((d, idx) => {
+    const x = paddingLeft + (custoPorDia.length > 1 ? (idx / (custoPorDia.length - 1)) * chartWidth : chartWidth / 2);
+    const y = height - paddingBottom - (d.custo_usd / maxVal) * chartHeight;
+    return { x, y, ...d };
+  });
+
+  const linePath = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+  const areaPath = points.length > 0
+    ? `${linePath} L ${points[points.length - 1].x} ${height - paddingBottom} L ${points[0].x} ${height - paddingBottom} Z`
+    : '';
+
+  const [hoveredPoint, setHoveredPoint] = useState<typeof points[0] | null>(null);
+
+  return (
+    <div className="card" style={{ padding: 20, flex: 1, minWidth: 280, minHeight: 280, position: 'relative' }}>
+      <h4 className="t-serif" style={{ fontSize: 16, margin: '0 0 16px 0', color: 'var(--navy-700)' }}>
+        Custo por dia (US$)
+      </h4>
+
+      {custoPorDia.length === 0 ? (
+        <div className="empty" style={{ height: 180 }}>
+          <span className="t-mono" style={{ color: 'var(--ink-50)', fontSize: 12 }}>Sem custos registrados no período</span>
+        </div>
+      ) : (
+        <div style={{ position: 'relative', width: '100%', height }}>
+          <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" style={{ overflow: 'visible' }}>
+            <defs>
+              <linearGradient id="areaGradient-custo" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--navy-500)" stopOpacity="0.25" />
+                <stop offset="100%" stopColor="var(--navy-500)" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+
+            {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
+              const y = height - paddingBottom - ratio * chartHeight;
+              return (
+                <g key={idx}>
+                  <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="var(--paper-200)" strokeDasharray="3 3" />
+                  <text x={paddingLeft - 8} y={y + 4} className="t-mono" fontSize="9" fill="var(--ink-50)" textAnchor="end">
+                    {(ratio * maxVal).toFixed(2)}
+                  </text>
+                </g>
+              );
+            })}
+
+            {areaPath && <path d={areaPath} fill="url(#areaGradient-custo)" />}
+            {linePath && <path d={linePath} fill="none" stroke="var(--navy-500)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+
+            {points.map((p, idx) => {
+              const parts = p.data.split('-');
+              const labelStr = `${parts[2]}/${parts[1]}`;
+              return (
+                <text key={idx} x={p.x} y={height - 10} className="t-mono" fontSize="9" fill="var(--ink-50)" textAnchor="middle">
+                  {labelStr}
+                </text>
+              );
+            })}
+
+            {points.map((p, idx) => (
+              <g key={idx}>
+                <circle
+                  cx={p.x} cy={p.y}
+                  r={hoveredPoint?.data === p.data ? 5 : 3.5}
+                  fill={hoveredPoint?.data === p.data ? 'var(--navy-700)' : 'var(--navy-500)'}
+                  stroke="#fff" strokeWidth="1.5"
+                  style={{ transition: 'all 0.1s ease', cursor: 'pointer' }}
+                  onMouseEnter={() => setHoveredPoint(p)}
+                  onMouseLeave={() => setHoveredPoint(null)}
+                />
+                <circle cx={p.x} cy={p.y} r="12" fill="transparent" style={{ cursor: 'pointer' }}
+                  onMouseEnter={() => setHoveredPoint(p)} onMouseLeave={() => setHoveredPoint(null)} />
+              </g>
+            ))}
+          </svg>
+
+          {hoveredPoint && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${(hoveredPoint.x / width) * 100}%`,
+                top: `${(hoveredPoint.y / height) * 100 - 32}%`,
+                transform: 'translateX(-50%)',
+                background: 'var(--navy-700)', color: '#fff', padding: '4px 8px', borderRadius: 6,
+                fontSize: 10, fontWeight: 600, boxShadow: '0 4px 12px rgba(15, 23, 42, 0.15)',
+                zIndex: 5, pointerEvents: 'none', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)',
+              }}
+            >
+              {new Date(hoveredPoint.data + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}: US$ {hoveredPoint.custo_usd.toFixed(2)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const CustoPorTemplateChart: React.FC<{ templates: TemplateKpi[] }> = ({ templates }) => {
+  const withDispatches = templates.filter((t) => t.disparosNoPeriodo > 0).sort((a, b) => b.custoEstimadoUsd - a.custoEstimadoUsd);
+  const maxVal = Math.max(...withDispatches.map((t) => t.custoEstimadoUsd), 0.1);
+
+  return (
+    <div className="card" style={{ padding: 20, flex: 1, minWidth: 280, minHeight: 280, display: 'flex', flexDirection: 'column' }}>
+      <h4 className="t-serif" style={{ fontSize: 16, margin: '0 0 4px 0', color: 'var(--navy-700)' }}>
+        Custo por template
+      </h4>
+      <span className="t-mono" style={{ fontSize: 10, color: 'var(--ink-50)', marginBottom: 16 }}>
+        Estimado — volume de disparos × tarifa da categoria
+      </span>
+
+      {withDispatches.length === 0 ? (
+        <div className="empty" style={{ flex: 1 }}>
+          <span className="t-mono" style={{ color: 'var(--ink-50)', fontSize: 12 }}>Sem disparos no período</span>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, justifyContent: 'center' }}>
+          {withDispatches.slice(0, 6).map((t) => {
+            const pct = Math.max(6, (t.custoEstimadoUsd / maxVal) * 100);
+            return (
+              <div key={t.id}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--ink-300)', fontFamily: 'var(--font-mono)' }}>{t.nome}</span>
+                  <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)' }}>
+                    US$ {t.custoEstimadoUsd.toFixed(2)} <span style={{ fontSize: 9 }}>({t.disparosNoPeriodo} disparos)</span>
+                  </span>
+                </div>
+                <div style={{ height: 10, background: 'var(--paper-100)', borderRadius: 5, overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      height: '100%', width: '100%', background: 'var(--navy-500)', borderRadius: 5,
+                      transform: `scaleX(${pct / 100})`, transformOrigin: 'left', transition: 'transform 0.5s var(--ease-out)',
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

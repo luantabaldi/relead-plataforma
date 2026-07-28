@@ -142,6 +142,22 @@ describe('DashboardPage - Gerenciar CRUD', () => {
           }),
         };
       }
+      // Tabelas consultadas por useMetaKpis (roda em toda renderização de DashboardPage,
+      // independente da aba ativa) — mock chainable genérico, resolve sempre vazio/nulo.
+      if (table === 'numeros_whatsapp_status') {
+        return {
+          select: jest.fn().mockReturnThis(),
+          limit: jest.fn().mockReturnThis(),
+          maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        };
+      }
+      if (table === 'custos_conversas_meta' || table === 'v_disparos_custo') {
+        return {
+          select: jest.fn().mockReturnThis(),
+          gte: jest.fn().mockReturnThis(),
+          lte: jest.fn().mockResolvedValue({ data: [], error: null }),
+        };
+      }
       return {
         select: jest.fn().mockResolvedValue({ data: [], error: null }),
       };
@@ -173,7 +189,7 @@ describe('DashboardPage - Gerenciar CRUD', () => {
       });
     });
 
-    it('deve validar o formato do nome (Meta Slug) apenas com minúsculas e sublinhados', async () => {
+    it('não deve exibir o botão "Novo template" (templates só chegam via sincronização com a Meta)', async () => {
       render(<DashboardPage />);
       const gerenciarBtn = screen.getByRole('button', { name: /Gerenciar/ });
       await act(async () => {
@@ -184,19 +200,10 @@ describe('DashboardPage - Gerenciar CRUD', () => {
         expect(screen.getByText('lee_dama_tower')).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Novo template'));
-
-      const nameInput = screen.getByPlaceholderText('ex: lee_dama_tower');
-      fireEvent.change(nameInput, { target: { value: 'Nome_Invalido' } });
-
-      const saveBtn = screen.getByText('Salvar template');
-      fireEvent.click(saveBtn);
-
-      expect(await screen.findByText(/O nome do template WABA deve conter apenas letras minúsculas/)).toBeInTheDocument();
-      expect(mockInsertTemplate).not.toHaveBeenCalled();
+      expect(screen.queryByText('Novo template')).not.toBeInTheDocument();
     });
 
-    it('deve realizar INSERT com sucesso se o slug for válido', async () => {
+    it('deve exibir nome e status como somente leitura ao editar, e salvar apenas tipo/tem_variaveis', async () => {
       render(<DashboardPage />);
       const gerenciarBtn = screen.getByRole('button', { name: /Gerenciar/ });
       await act(async () => {
@@ -207,10 +214,15 @@ describe('DashboardPage - Gerenciar CRUD', () => {
         expect(screen.getByText('lee_dama_tower')).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByText('Novo template'));
+      const editButtons = screen.getAllByLabelText('Editar template');
+      fireEvent.click(editButtons[0]);
 
-      const nameInput = screen.getByPlaceholderText('ex: lee_dama_tower');
-      fireEvent.change(nameInput, { target: { value: 'novo_template_waba' } });
+      // Nome não é mais um <input> editável — aparece como texto fixo
+      expect(screen.queryByPlaceholderText('ex: lee_dama_tower')).not.toBeInTheDocument();
+      expect(screen.getAllByTitle('Vem da sincronização com a Meta — não pode ser editado')).toHaveLength(2);
+
+      const tipoSelect = screen.getByLabelText('Tipo de campanha *');
+      fireEvent.change(tipoSelect, { target: { value: 'reativacao' } });
 
       const saveBtn = screen.getByText('Salvar template');
       await act(async () => {
@@ -218,12 +230,12 @@ describe('DashboardPage - Gerenciar CRUD', () => {
       });
 
       await waitFor(() => {
-        expect(mockInsertTemplate).toHaveBeenCalledWith({
-          nome: 'novo_template_waba',
-          tipo: 'prospeccao',
-          status_meta: 'APPROVED',
-        });
+        expect(mockUpdateTemplate).toHaveBeenCalledWith(
+          { tipo: 'reativacao', tem_variaveis: true },
+          '1'
+        );
       });
+      expect(mockInsertTemplate).not.toHaveBeenCalled();
     });
   });
 

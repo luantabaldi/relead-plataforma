@@ -14,6 +14,7 @@ interface HashState {
  *   #/acompanhar
  *   #/disparar
  *   #/analisar
+ *   #/kpis
  *   #/gerenciar            → defaults to 'templates'
  *   #/gerenciar/templates
  *   #/gerenciar/empreendimentos
@@ -22,7 +23,7 @@ interface HashState {
 function parseHash(hash: string): HashState {
   const path = hash.replace(/^#\/?/, '').split('/');
   const rawTab = path[0] as TabType;
-  const validTabs: TabType[] = ['acompanhar', 'disparar', 'analisar', 'logs', 'leads', 'gerenciar'];
+  const validTabs: TabType[] = ['acompanhar', 'disparar', 'analisar', 'kpis', 'logs', 'leads', 'gerenciar'];
   const tab: TabType = validTabs.includes(rawTab) ? rawTab : 'analisar';
 
   const validSubTabs: ManageSubTab[] = ['templates', 'empreendimentos', 'agendadas'];
