@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLeadsList, Lead, MOTIVOS_OBJECAO, TIPOS_ERRO, isSemInteresse, isErro } from '../hooks/useLeadsList';
+import { useLeadsList, Lead, MOTIVOS_OBJECAO, TIPOS_ERRO, isSemInteresse, isErro, isRespostaAutomatica } from '../hooks/useLeadsList';
 import { Icon } from './Icon';
 import '../styles/leads-tab.css';
 
@@ -26,6 +26,7 @@ export const LeadsTab: React.FC = () => {
     if (s === 'respondido') return '#EA7317'; // orange
     if (s === 'reativado' || s === 'interessado') return '#4CAF50'; // green
     if (s === 'erro' || s === 'erro no disparo') return '#F44336'; // red
+    if (isRespostaAutomatica(status)) return '#9C27B0'; // roxo
     return '#999'; // gray
   };
 
@@ -35,6 +36,7 @@ export const LeadsTab: React.FC = () => {
     if (s === 'reativado' || s === 'interessado') return 'Interessado';
     if (isErro(status)) return 'Erro';
     if (isSemInteresse(status)) return 'Sem interesse';
+    if (isRespostaAutomatica(status)) return 'Resposta automática (bot)';
     if (s === 'pendente') return 'Pendente';
     return 'Sem resposta';
   };
@@ -117,6 +119,7 @@ export const LeadsTab: React.FC = () => {
                   <option value="respondido">Respondido</option>
                   <option value="ativado">Ativado / Interessado</option>
                   <option value="sem_interesse">Sem interesse</option>
+                  <option value="resposta_automatica">Resposta automática (bot)</option>
                   <option value="sem_resposta">Sem resposta</option>
                   <option value="pendente">Pendente</option>
                   <option value="erro">Erro</option>

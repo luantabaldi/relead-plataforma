@@ -47,7 +47,7 @@ export interface LeadsStats {
 
 export interface LeadsFilters {
   searchTerm: string;
-  status: string; // '' | 'respondido' | 'ativado' | 'erro' | 'pendente' | 'sem_resposta' | 'sem_interesse'
+  status: string; // '' | 'respondido' | 'ativado' | 'erro' | 'pendente' | 'sem_resposta' | 'sem_interesse' | 'resposta_automatica'
   nomeCampanha: string; // '' = todas
   empreendimentoId: string; // '' = todos
   dataInicio: Date | null;
@@ -65,6 +65,7 @@ const defaultFilters: LeadsFilters = {
 
 export const isSemInteresse = (status: string): boolean => (status || '').toLowerCase().trim() === 'sem interesse';
 export const isErro = (status: string): boolean => ['erro', 'erro no disparo'].includes((status || '').toLowerCase().trim());
+export const isRespostaAutomatica = (status: string): boolean => (status || '').toLowerCase().trim() === 'resposta automática';
 
 export const useLeadsList = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -162,6 +163,8 @@ export const useLeadsList = () => {
         return status === 'reativado' || status === 'interessado';
       case 'sem_interesse':
         return isSemInteresse(lead.status_reativacao);
+      case 'resposta_automatica':
+        return isRespostaAutomatica(lead.status_reativacao);
       case 'erro':
         return isErro(lead.status_reativacao);
       case 'pendente':
