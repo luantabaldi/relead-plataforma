@@ -7,6 +7,7 @@ export const MOTIVOS_OBJECAO = [
   'Não é o momento',
   'Sem orçamento aprovado',
   'Localização não atende',
+  'Solicitou remoção/opt-out',
   'Não respondeu mais',
   'Outro',
 ] as const;
