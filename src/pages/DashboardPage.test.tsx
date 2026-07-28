@@ -415,7 +415,7 @@ describe('DashboardPage - Gerenciar CRUD', () => {
       expect(screen.getByText('Leads disparados')).toBeInTheDocument();
       expect(screen.getAllByText('Responderam').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Interessados').length).toBeGreaterThan(0);
-      expect(screen.getByText('Taxa de resposta')).toBeInTheDocument();
+      expect(screen.getByText('Taxa de interessados')).toBeInTheDocument();
 
       expect(screen.getByText('Disparos por dia')).toBeInTheDocument();
       expect(screen.getByText('Taxa de resposta por campanha')).toBeInTheDocument();

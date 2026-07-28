@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 64" fill="none">
-  <rect x="2" y="2" width="60" height="60" rx="16" fill="#171E45"></rect>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="#0A0A0A"></rect>
   <path d="M40 16 L24 48" stroke="#F7F8FA" stroke-width="6" stroke-linecap="round"></path>
-  <text x="80" y="46" font-family="Cormorant, Georgia, serif" font-weight="500" font-size="44" fill="#1A1611" letter-spacing="-1">Dash</text>
+  <text x="80" y="46" font-family="'Google Sans Flex Display', system-ui, sans-serif" font-weight="600" font-size="44" fill="#0A0A0A" letter-spacing="-1">reLead</text>
 </svg>

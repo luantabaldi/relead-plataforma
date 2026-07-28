@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Dispatch, FilterOptions } from '../types';
 import { mockDispatches } from '../mocks/mockData';
@@ -19,6 +19,7 @@ export const useDispatchesList = (filters: FilterOptions): UseDispatchesListStat
   const [dispatches, setDispatches] = useState<Dispatch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedOnce = useRef(false);
 
   const normalizeStatus = (status: string | null): any => {
     if (!status) return 'enviado';
@@ -31,7 +32,9 @@ export const useDispatchesList = (filters: FilterOptions): UseDispatchesListStat
 
   const fetchDispatches = useCallback(async () => {
     try {
-      setIsLoading(true);
+      // Só mostra o skeleton de carregamento na primeira busca — refetches
+      // disparados por realtime (a cada lead enviado) não devem "piscar" a tela.
+      if (!hasLoadedOnce.current) setIsLoading(true);
       setError(null);
 
       let query = supabase
@@ -135,6 +138,7 @@ export const useDispatchesList = (filters: FilterOptions): UseDispatchesListStat
       setDispatches(filtered);
       setError(null); // Sem erro - usando modo demo
     } finally {
+      hasLoadedOnce.current = true;
       setIsLoading(false);
     }
   }, [filters]);

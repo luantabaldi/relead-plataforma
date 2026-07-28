@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { TabType } from '../components/Sidebar';
+import { TabType } from '../components/TopNav';
 
 export type ManageSubTab = 'templates' | 'empreendimentos' | 'agendadas';
 
@@ -22,7 +22,7 @@ interface HashState {
 function parseHash(hash: string): HashState {
   const path = hash.replace(/^#\/?/, '').split('/');
   const rawTab = path[0] as TabType;
-  const validTabs: TabType[] = ['acompanhar', 'disparar', 'analisar', 'gerenciar'];
+  const validTabs: TabType[] = ['acompanhar', 'disparar', 'analisar', 'logs', 'gerenciar'];
   const tab: TabType = validTabs.includes(rawTab) ? rawTab : 'analisar';
 
   const validSubTabs: ManageSubTab[] = ['templates', 'empreendimentos', 'agendadas'];

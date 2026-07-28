@@ -1,40 +1,45 @@
 # Design
 
-Source of truth: `Dash Design System/colors_and_type.css` (canonical tokens) mirrored into `src/styles/dash.css` for production use. Tailwind extended to match in `tailwind.config.js`.
+Source of truth: `src/styles/dash.css` (tokens + component classes). Tailwind extended to match in `tailwind.config.js`.
 
 ## Theme
 
-Light only, cool-gray canvas. No dark mode. Scene: operador em escritório, tela aberta o dia todo ao lado de outras ferramentas (CRM, WhatsApp Web) — precisa de contraste alto e leitura rápida, não ambiência.
+Light only, monochrome canvas — ElevenLabs-style. No dark mode, no brand hue. Scene: operador em escritório, tela aberta o dia todo ao lado de outras ferramentas (CRM, WhatsApp Web) — precisa de contraste alto e leitura rápida, não ambiência.
 
 ## Color Strategy
 
-Restrained. One brand color (navy) + tinted cool-gray neutrals + sparing semantic accents for status (green/amber/red), never used as the only signal.
+Restrained to the point of monochrome. One near-black "brand" color (used for primary CTAs and active states) + true-neutral grays + sparing semantic accents for status (green/amber/red), never used as the only signal.
 
-- Brand: `--navy-600 #171E45` (primary/CTA/active), `--navy-500 #2C3568` (chart fill/hover)
-- Neutrals: page `--paper-50 #F7F8FA`, surface `--paper-0 #FFFFFF`, hairline border `--paper-200 #E1E5EB`
-- Ink (never pure black): headline `--ink-300 #1A1611`, body `--ink-200 #2E2A23`, muted `--ink-50 #6E665A`
-- Semantic (sparingly): green `#2F8F5C`, amber `#C58B2A`, red `#C73428`, each with a `-50` soft background tint
+- Brand: `--navy-600 #0A0A0A` (primary/CTA/active — near-black, no hue), `--navy-500 #333333` (hover)
+- Neutrals: page/surface `--paper-0 #FFFFFF`, sunken `--paper-100 #F2F2F2`, hairline border `--paper-200 #E5E5E5`
+- Ink (true neutral, no warm/cool undertone): headline `--ink-300 #0A0A0A`, body `--ink-200 #262626`, muted `--ink-50 #737373`
+- Semantic (sparingly, as bordered pills + colored dot, not tinted fills): green `#16A34A`, amber `#D97706`, red `#DC2626`
 
 ## Typography
 
-Two families only. Cormorant (serif, weight 500, `type-display-*`/`type-h1`/`type-h2`) for human/headline moments. Google Sans Flex for everything else — body, labels, data. Space Mono is retired; `--font-mono` now aliases Google Sans Flex for the label/eyebrow/data tier.
+One family only — Google Sans Flex (Cormorant/serif retired: ElevenLabs uses no serif anywhere). Display headings use the 72pt optical-size cut ("Google Sans Flex Display") at weight 600, everything else — body, labels, data — uses the 24pt cut.
 
-Scale: 11/12/14/16/20/28/40/56/84px (`--fs-xs` → `--fs-4xl`). Numbers always tabular (`font-feature-settings: "tnum" 1`). Sentence case everywhere, no title case.
+Scale: 11/12/14/16/20/28/40/56px. Numbers always tabular (`font-feature-settings: "tnum" 1`). Sentence case everywhere, no title case.
 
 ## Layout
 
-Dash app shell: 264px `Sidebar` + 80px `Topbar` + content. Four sections as sidebar nav: Acompanhar, Disparar, Analisar, Gerenciar. `Acompanhar` uses a master-detail pattern (list + conversation thread).
+Dash app shell: 264px `Sidebar` + 72px `Topbar` + content. Four sections as sidebar nav: Acompanhar, Disparar, Analisar, Gerenciar. `Acompanhar` uses a master-detail pattern (list + conversation thread).
 
 Spacing scale is 4px-based (`--space-1` 4px → `--space-24` 96px).
 
 ## Components
 
-- Radius: 12px (`--radius-md`) default for cards/inputs; pill (999px) for primary buttons only.
-- Shadows: brown-tinted only (`rgba(64,38,14,…)`), never neutral black — `--shadow-xs/sm/md/lg`.
+- Radius: generous — 14px (`--radius-md`) for cards, 10px (`--radius-sm`) for buttons/inputs, pill (999px) reserved for search bars, filter chips and tags (not primary buttons — ElevenLabs' CTAs are moderately-rounded rects, not pills).
+- Shadows: neutral black, near-zero — borders do the separating work, shadow only appears on hover/elevated surfaces (`--shadow-xs/sm/md/lg`).
 - Icons: Lucide only, stroke-width 1.5, 18px default, `currentColor`, via `src/components/Icon.tsx`. No emoji anywhere.
-- Focus ring: `0 0 0 3px` navy at 35% mix.
+- Sidebar active state: light-gray fill (`--paper-100`) + near-black text/icon — not an inverted dark pill.
+- Focus ring: `0 0 0 3px` near-black at 14% opacity.
 - Status presentation centralized in `src/components/statusMeta.ts` — single source for label/color/icon per status.
 
 ## Motion
 
 `--ease-out` (0.22,1,.36,1) for entrances, `--ease-in` for exits, `--ease-snap` for toggles. Durations 120/200/360ms. No bounce/elastic.
+
+## Font substitution note
+
+ElevenLabs' production typeface is proprietary and isn't freely licensable, so this system reuses the already-bundled Google Sans Flex family (same neutral-grotesk character, full weight range, already self-hosted) rather than pulling in a new font. Everything else — palette, radii, shadow weight, button/pill split, chip style — mirrors the ElevenLabs reference screens directly.

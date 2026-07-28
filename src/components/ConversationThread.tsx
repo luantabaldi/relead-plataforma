@@ -122,12 +122,12 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({ conversa
             <Icon name={interesse ? 'thumbs-up' : 'thumbs-down'} size={16} />
           </span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="t-label" style={{ color: interesse ? '#1F5C3C' : '#7A1F18' }}>Classificação da IA</div>
+            <div className="t-label" style={{ color: interesse ? '#166534' : '#991B1B' }}>Classificação da IA</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
-              <span style={{ fontWeight: 700, fontSize: 15, color: interesse ? '#1F5C3C' : '#7A1F18' }}>
+              <span style={{ fontWeight: 700, fontSize: 15, color: interesse ? '#166534' : '#991B1B' }}>
                 {interesse ? 'Interessado' : 'Sem interesse'}
               </span>
-              <span className="t-mono tnum" style={{ fontSize: 12, color: interesse ? '#1F5C3C' : '#7A1F18', opacity: 0.8 }}>
+              <span className="t-mono tnum" style={{ fontSize: 12, color: interesse ? '#166534' : '#991B1B', opacity: 0.8 }}>
                 {ai_classification.confianca}% confiança
               </span>
             </div>

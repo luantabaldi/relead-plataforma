@@ -7,44 +7,45 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Brand: deep navy. `navy` is canonical; `orange` kept as alias for back-compat.
+        // Brand: near-black. `navy` is canonical; `orange` kept as alias for back-compat.
         navy: {
-          50: '#EDEEF4', 100: '#D6D9E7', 200: '#AEB4CD', 300: '#828BB0',
-          400: '#525C8E', 500: '#2C3568', 600: '#171E45', 700: '#121839',
-          800: '#0D112A', 900: '#070A1A',
+          50: '#F2F2F2', 100: '#E3E3E3', 200: '#C7C7C7', 300: '#A3A3A3',
+          400: '#6E6E6E', 500: '#333333', 600: '#0A0A0A', 700: '#000000',
+          800: '#000000', 900: '#000000',
         },
         orange: {
-          50: '#EDEEF4', 100: '#D6D9E7', 200: '#AEB4CD', 300: '#828BB0',
-          400: '#525C8E', 500: '#2C3568', 600: '#171E45', 700: '#121839',
-          800: '#0D112A', 900: '#070A1A',
+          50: '#F2F2F2', 100: '#E3E3E3', 200: '#C7C7C7', 300: '#A3A3A3',
+          400: '#6E6E6E', 500: '#333333', 600: '#0A0A0A', 700: '#000000',
+          800: '#000000', 900: '#000000',
         },
         paper: {
-          0: '#FFFFFF', 50: '#F7F8FA', 100: '#EEF0F4', 200: '#E1E5EB',
-          300: '#CBD1DA', 400: '#98A0AD', 500: '#6B727E',
+          0: '#FFFFFF', 50: '#FAFAFA', 100: '#F2F2F2', 200: '#E5E5E5',
+          300: '#D4D4D4', 400: '#A3A3A3', 500: '#737373',
         },
         ink: {
-          50: '#6E665A', 100: '#4D463C', 200: '#2E2A23', 300: '#1A1611', 400: '#0E0C09',
+          50: '#737373', 100: '#525252', 200: '#262626', 300: '#0A0A0A', 400: '#000000',
         },
-        leaf: { 50: '#E6F1EA', 500: '#2F8F5C' },
-        gold: { 50: '#F8EFD9', 500: '#C58B2A' },
-        rust: { 50: '#F8E1DE', 500: '#C73428' },
+        leaf: { 50: '#F0FDF4', 500: '#16A34A' },
+        gold: { 50: '#FFFBEB', 500: '#D97706' },
+        rust: { 50: '#FEF2F2', 500: '#DC2626' },
       },
       fontFamily: {
-        display: ['Cormorant', 'Cormorant Garamond', 'Georgia', 'serif'],
-        // Two families only — Space Mono retired. mono/body both Google Sans Flex.
+        // Single family, everywhere — no serif. Matches the ElevenLabs
+        // one-typeface approach (display just uses a heavier optical size).
+        display: ['"Google Sans Flex Display"', '"Google Sans Flex"', 'Inter', 'system-ui', 'sans-serif'],
         mono: ['"Google Sans Flex"', 'Inter', '-apple-system', 'system-ui', 'sans-serif'],
         body: ['"Google Sans Flex"', 'Inter', '-apple-system', 'system-ui', 'sans-serif'],
         data: ['"Google Sans Flex Display"', '"Google Sans Flex"', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
-        md: '12px', lg: '16px', xl: '20px', '2xl': '24px', pill: '999px',
+        md: '14px', lg: '18px', xl: '22px', '2xl': '28px', pill: '999px',
       },
       boxShadow: {
-        xs: '0 1px 2px rgba(64, 38, 14, 0.04)',
-        sm: '0 2px 6px rgba(64, 38, 14, 0.05), 0 1px 2px rgba(64, 38, 14, 0.04)',
-        md: '0 8px 24px rgba(64, 38, 14, 0.07), 0 2px 6px rgba(64, 38, 14, 0.05)',
-        lg: '0 24px 48px rgba(64, 38, 14, 0.10), 0 4px 12px rgba(64, 38, 14, 0.06)',
-        accent: '0 8px 24px rgba(23, 30, 69, 0.28)',
+        xs: '0 1px 2px rgba(0, 0, 0, 0.03)',
+        sm: '0 2px 6px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03)',
+        md: '0 8px 20px rgba(0, 0, 0, 0.06), 0 2px 6px rgba(0, 0, 0, 0.04)',
+        lg: '0 20px 44px rgba(0, 0, 0, 0.09), 0 4px 12px rgba(0, 0, 0, 0.05)',
+        accent: '0 6px 18px rgba(10, 10, 10, 0.22)',
       },
       transitionTimingFunction: {
         out: 'cubic-bezier(0.22, 1, 0.36, 1)',

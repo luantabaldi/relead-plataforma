@@ -4,13 +4,12 @@ import { supabase } from '../lib/supabase';
 import { useConfirm } from '../hooks/useConfirm';
 
 interface TopbarProps {
-  crumb: string;
   syncing?: boolean;
   actions?: React.ReactNode;
   session?: any;
 }
 
-export const Topbar: React.FC<TopbarProps> = ({ crumb, syncing = false, actions, session }) => {
+export const Topbar: React.FC<TopbarProps> = ({ syncing = false, actions, session }) => {
   const user = session?.user;
   const rawName = user?.user_metadata?.name || user?.email || 'Sym Imóveis';
   const getInitials = (n: string) => {
@@ -39,10 +38,6 @@ export const Topbar: React.FC<TopbarProps> = ({ crumb, syncing = false, actions,
 
   return (
     <header className="topbar">
-      <div className="crumb" style={{ flex: 1 }}>
-        <b>Home</b>&nbsp;&nbsp;›&nbsp;&nbsp;{crumb}
-      </div>
-
       {actions}
 
       <button type="button" className="icon-btn" aria-label="Notificações">
