@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { useLeadsList, Lead } from '../hooks/useLeadsList';
+import { useLeadsList, Lead, MOTIVOS_OBJECAO, TIPOS_ERRO, isSemInteresse, isErro } from '../hooks/useLeadsList';
 import { Icon } from './Icon';
 import '../styles/leads-tab.css';
 
 export const LeadsTab: React.FC = () => {
-  const { leads, allLeads, isLoading, filters, setFilters, stats, campanhaOptions, empreendimentoOptions } = useLeadsList();
+  const { leads, allLeads, isLoading, filters, setFilters, stats, campanhaOptions, empreendimentoOptions, updateLeadClassification } = useLeadsList();
   const [showFilters, setShowFilters] = useState(false);
 
   const handleClearFilters = () => {
@@ -33,7 +33,8 @@ export const LeadsTab: React.FC = () => {
     const s = (status || '').toLowerCase();
     if (s === 'respondido') return 'Respondido';
     if (s === 'reativado' || s === 'interessado') return 'Interessado';
-    if (s === 'erro' || s === 'erro no disparo') return 'Erro';
+    if (isErro(status)) return 'Erro';
+    if (isSemInteresse(status)) return 'Sem interesse';
     if (s === 'pendente') return 'Pendente';
     return 'Sem resposta';
   };
@@ -115,6 +116,7 @@ export const LeadsTab: React.FC = () => {
                   <option value="">Todos os status</option>
                   <option value="respondido">Respondido</option>
                   <option value="ativado">Ativado / Interessado</option>
+                  <option value="sem_interesse">Sem interesse</option>
                   <option value="sem_resposta">Sem resposta</option>
                   <option value="pendente">Pendente</option>
                   <option value="erro">Erro</option>
@@ -190,6 +192,7 @@ export const LeadsTab: React.FC = () => {
                 <th>Campanha</th>
                 <th>Empreendimento</th>
                 <th>Status</th>
+                <th>Motivo / Erro</th>
                 <th>Enviado em</th>
                 <th>Respondido em</th>
               </tr>
@@ -208,6 +211,33 @@ export const LeadsTab: React.FC = () => {
                     >
                       {getStatusLabel(lead.status_reativacao)}
                     </span>
+                  </td>
+                  <td className="classification">
+                    {isSemInteresse(lead.status_reativacao) && (
+                      <select
+                        className="classification-select"
+                        value={lead.motivo_objecao || ''}
+                        onChange={(e) => updateLeadClassification(lead.id, 'motivo_objecao', e.target.value)}
+                      >
+                        <option value="">Classificar objeção…</option>
+                        {MOTIVOS_OBJECAO.map((motivo) => (
+                          <option key={motivo} value={motivo}>{motivo}</option>
+                        ))}
+                      </select>
+                    )}
+                    {isErro(lead.status_reativacao) && (
+                      <select
+                        className="classification-select"
+                        value={lead.tipo_erro || ''}
+                        onChange={(e) => updateLeadClassification(lead.id, 'tipo_erro', e.target.value)}
+                      >
+                        <option value="">Classificar erro…</option>
+                        {TIPOS_ERRO.map((tipo) => (
+                          <option key={tipo} value={tipo}>{tipo}</option>
+                        ))}
+                      </select>
+                    )}
+                    {!isSemInteresse(lead.status_reativacao) && !isErro(lead.status_reativacao) && '-'}
                   </td>
                   <td className="date">
                     {lead.data_envio.toLocaleString('pt-BR', {

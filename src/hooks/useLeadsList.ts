@@ -1,6 +1,25 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
+export const MOTIVOS_OBJECAO = [
+  'Preço alto',
+  'Já comprou/alugou',
+  'Não é o momento',
+  'Sem orçamento aprovado',
+  'Localização não atende',
+  'Não respondeu mais',
+  'Outro',
+] as const;
+
+export const TIPOS_ERRO = [
+  'Número inválido/inexistente',
+  'WhatsApp não instalado',
+  'Falha de entrega (API)',
+  'Template rejeitado pela Meta',
+  'Opt-out/bloqueio',
+  'Outro',
+] as const;
+
 export interface Lead {
   id: string;
   telefone: string;
@@ -13,6 +32,8 @@ export interface Lead {
   data_resposta?: Date;
   ultima_resposta_lead?: string;
   nome_campanha?: string;
+  motivo_objecao?: string | null;
+  tipo_erro?: string | null;
 }
 
 export interface LeadsStats {
@@ -25,7 +46,7 @@ export interface LeadsStats {
 
 export interface LeadsFilters {
   searchTerm: string;
-  status: string; // '' | 'respondido' | 'ativado' | 'erro' | 'pendente' | 'sem_resposta'
+  status: string; // '' | 'respondido' | 'ativado' | 'erro' | 'pendente' | 'sem_resposta' | 'sem_interesse'
   nomeCampanha: string; // '' = todas
   empreendimentoId: string; // '' = todos
   dataInicio: Date | null;
@@ -41,6 +62,9 @@ const defaultFilters: LeadsFilters = {
   dataFim: null,
 };
 
+export const isSemInteresse = (status: string): boolean => (status || '').toLowerCase().trim() === 'sem interesse';
+export const isErro = (status: string): boolean => ['erro', 'erro no disparo'].includes((status || '').toLowerCase().trim());
+
 export const useLeadsList = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [empreendimentosMap, setEmpreendimentosMap] = useState<Record<string, string>>({});
@@ -54,7 +78,7 @@ export const useLeadsList = () => {
       const [leadsResult, empreendimentosResult] = await Promise.all([
         supabase
           .from('leads_reativacao')
-          .select('id, telefone, nome_lead, tipo_campanha, status_reativacao, empreendimento_id, data_envio, data_resposta, ultima_resposta_lead, nome_campanha')
+          .select('id, telefone, nome_lead, tipo_campanha, status_reativacao, empreendimento_id, data_envio, data_resposta, ultima_resposta_lead, nome_campanha, motivo_objecao, tipo_erro')
           .not('nome_lead', 'is', null)
           .order('data_envio', { ascending: false }),
         supabase
@@ -112,6 +136,21 @@ export const useLeadsList = () => {
     };
   }, [fetchLeads]);
 
+  const updateLeadClassification = useCallback(async (leadId: string, field: 'motivo_objecao' | 'tipo_erro', value: string) => {
+    const previous = leads.find(l => l.id === leadId)?.[field] ?? null;
+    setLeads(prev => prev.map(l => (l.id === leadId ? { ...l, [field]: value || null } : l)));
+
+    const { error } = await supabase
+      .from('leads_reativacao')
+      .update({ [field]: value || null })
+      .eq('id', leadId);
+
+    if (error) {
+      console.warn(`⚠️ Erro ao salvar ${field}:`, error);
+      setLeads(prev => prev.map(l => (l.id === leadId ? { ...l, [field]: previous } : l)));
+    }
+  }, [leads]);
+
   const statusMatches = (lead: Lead, filterStatus: string): boolean => {
     if (!filterStatus) return true;
     const status = (lead.status_reativacao || '').toLowerCase();
@@ -120,8 +159,10 @@ export const useLeadsList = () => {
         return status === 'respondido';
       case 'ativado':
         return status === 'reativado' || status === 'interessado';
+      case 'sem_interesse':
+        return isSemInteresse(lead.status_reativacao);
       case 'erro':
-        return status === 'erro' || status === 'erro no disparo';
+        return isErro(lead.status_reativacao);
       case 'pendente':
         return status === 'pendente';
       case 'sem_resposta':
@@ -162,7 +203,7 @@ export const useLeadsList = () => {
     const status = (lead.status_reativacao || '').toLowerCase();
     if (status === 'respondido') stats.respondidos += 1;
     else if (status === 'reativado' || status === 'interessado') stats.ativados += 1;
-    else if (status === 'erro' || status === 'erro no disparo') stats.erros += 1;
+    else if (isErro(lead.status_reativacao)) stats.erros += 1;
     else if (status !== 'pendente') stats.nao_respondidos += 1;
   });
 
@@ -180,5 +221,6 @@ export const useLeadsList = () => {
     refetch: fetchLeads,
     campanhaOptions,
     empreendimentoOptions,
+    updateLeadClassification,
   };
 };
