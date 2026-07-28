@@ -3,34 +3,23 @@ import { useLeadsList, Lead } from '../hooks/useLeadsList';
 import { Icon } from './Icon';
 import '../styles/leads-tab.css';
 
-interface LeadsTabProps {
-  selectedCampaignName?: string | null;
-}
-
-export const LeadsTab: React.FC<LeadsTabProps> = ({ selectedCampaignName }) => {
-  const { leads, allLeads, isLoading, filters, setFilters, stats, ledgerByEmpreendimento } = useLeadsList(selectedCampaignName);
+export const LeadsTab: React.FC = () => {
+  const { leads, allLeads, isLoading, filters, setFilters, stats, campanhaOptions, empreendimentoOptions } = useLeadsList();
   const [showFilters, setShowFilters] = useState(false);
-  const [expandedEmpreendimentos, setExpandedEmpreendimentos] = useState<Set<string>>(new Set());
-
-  const toggleEmpreendimento = (id: string) => {
-    const newExpanded = new Set(expandedEmpreendimentos);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-    }
-    setExpandedEmpreendimentos(newExpanded);
-  };
 
   const handleClearFilters = () => {
     setFilters({
       searchTerm: '',
-      respondidos: false,
-      ativados: false,
+      status: '',
+      nomeCampanha: '',
+      empreendimentoId: '',
+      dataInicio: null,
+      dataFim: null,
     });
   };
 
-  const hasActiveFilters = filters.searchTerm || filters.respondidos || filters.ativados;
+  const hasActiveFilters =
+    filters.searchTerm || filters.status || filters.nomeCampanha || filters.empreendimentoId || filters.dataInicio || filters.dataFim;
 
   const getStatusColor = (status: string): string => {
     const s = (status || '').toLowerCase();
@@ -48,6 +37,9 @@ export const LeadsTab: React.FC<LeadsTabProps> = ({ selectedCampaignName }) => {
     if (s === 'pendente') return 'Pendente';
     return 'Sem resposta';
   };
+
+  const parseDateInput = (value: string): Date | null => (value ? new Date(value + 'T00:00:00') : null);
+  const toDateInputValue = (date: Date | null): string => (date ? date.toISOString().split('T')[0] : '');
 
   if (isLoading) {
     return (
@@ -101,34 +93,81 @@ export const LeadsTab: React.FC<LeadsTabProps> = ({ selectedCampaignName }) => {
 
         {showFilters && (
           <div className="filter-content">
-            <div className="filter-group">
-              <label>Buscar por Telefone ou Nome</label>
-              <input
-                type="text"
-                placeholder="Ex: 11999999999 ou João"
-                value={filters.searchTerm}
-                onChange={(e) => setFilters({ ...filters, searchTerm: e.target.value })}
-                className="filter-input"
-              />
-            </div>
+            <div className="filter-grid">
+              <div className="filter-group">
+                <label>Buscar por Telefone ou Nome</label>
+                <input
+                  type="text"
+                  placeholder="Ex: 11999999999 ou João"
+                  value={filters.searchTerm}
+                  onChange={(e) => setFilters({ ...filters, searchTerm: e.target.value })}
+                  className="filter-input"
+                />
+              </div>
 
-            <div className="filter-group checkboxes">
-              <label>
+              <div className="filter-group">
+                <label>Status</label>
+                <select
+                  value={filters.status}
+                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                  className="filter-input"
+                >
+                  <option value="">Todos os status</option>
+                  <option value="respondido">Respondido</option>
+                  <option value="ativado">Ativado / Interessado</option>
+                  <option value="sem_resposta">Sem resposta</option>
+                  <option value="pendente">Pendente</option>
+                  <option value="erro">Erro</option>
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Campanha</label>
+                <select
+                  value={filters.nomeCampanha}
+                  onChange={(e) => setFilters({ ...filters, nomeCampanha: e.target.value })}
+                  className="filter-input"
+                >
+                  <option value="">Todas as campanhas</option>
+                  {campanhaOptions.map((nome) => (
+                    <option key={nome} value={nome}>{nome}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Empreendimento</label>
+                <select
+                  value={filters.empreendimentoId}
+                  onChange={(e) => setFilters({ ...filters, empreendimentoId: e.target.value })}
+                  className="filter-input"
+                >
+                  <option value="">Todos os empreendimentos</option>
+                  {empreendimentoOptions.map((emp) => (
+                    <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label>Data Início</label>
                 <input
-                  type="checkbox"
-                  checked={filters.respondidos}
-                  onChange={(e) => setFilters({ ...filters, respondidos: e.target.checked })}
+                  type="date"
+                  value={toDateInputValue(filters.dataInicio)}
+                  onChange={(e) => setFilters({ ...filters, dataInicio: parseDateInput(e.target.value) })}
+                  className="filter-input"
                 />
-                Apenas respondidos
-              </label>
-              <label>
+              </div>
+
+              <div className="filter-group">
+                <label>Data Fim</label>
                 <input
-                  type="checkbox"
-                  checked={filters.ativados}
-                  onChange={(e) => setFilters({ ...filters, ativados: e.target.checked })}
+                  type="date"
+                  value={toDateInputValue(filters.dataFim)}
+                  onChange={(e) => setFilters({ ...filters, dataFim: parseDateInput(e.target.value) })}
+                  className="filter-input"
                 />
-                Apenas ativados/interessados
-              </label>
+              </div>
             </div>
 
             {hasActiveFilters && (
@@ -140,76 +179,61 @@ export const LeadsTab: React.FC<LeadsTabProps> = ({ selectedCampaignName }) => {
         )}
       </div>
 
-      {/* Empreendimentos com Leads */}
-      <div className="empreendimentos-container">
-        {Object.entries(ledgerByEmpreendimento).map(([empreendimentoId, empreendimentoLeads]) => (
-          <div key={empreendimentoId} className="empreendimento-section">
-            <div className="empreendimento-header" onClick={() => toggleEmpreendimento(empreendimentoId)}>
-              <Icon
-                name={expandedEmpreendimentos.has(empreendimentoId) ? 'chevron-down' : 'chevron-right'}
-                size={16}
-              />
-              <span className="empreendimento-title">{empreendimentoId}</span>
-              <span className="empreendimento-count">{empreendimentoLeads.length} leads</span>
-            </div>
-
-            {expandedEmpreendimentos.has(empreendimentoId) && (
-              <div className="empreendimento-leads">
-                <table className="leads-table">
-                  <thead>
-                    <tr>
-                      <th>Telefone</th>
-                      <th>Nome</th>
-                      <th>Campanha</th>
-                      <th>Status</th>
-                      <th>Enviado em</th>
-                      <th>Respondido em</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {empreendimentoLeads.map((lead: Lead) => (
-                      <tr key={lead.id}>
-                        <td className="phone">{lead.telefone}</td>
-                        <td className="name">{lead.nome_lead}</td>
-                        <td className="campaign">{lead.nome_campanha || '-'}</td>
-                        <td className="status">
-                          <span
-                            className="status-badge"
-                            style={{ backgroundColor: getStatusColor(lead.status_reativacao) }}
-                          >
-                            {getStatusLabel(lead.status_reativacao)}
-                          </span>
-                        </td>
-                        <td className="date">
-                          {lead.data_envio.toLocaleString('pt-BR', {
-                            year: 'numeric',
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </td>
-                        <td className="date">
-                          {lead.data_resposta
-                            ? lead.data_resposta.toLocaleString('pt-BR', {
-                                year: 'numeric',
-                                month: '2-digit',
-                                day: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })
-                            : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        ))}
-
-        {leads.length === 0 && (
+      {/* Lista de Leads */}
+      <div className="leads-list-container">
+        {leads.length > 0 ? (
+          <table className="leads-table">
+            <thead>
+              <tr>
+                <th>Telefone</th>
+                <th>Nome</th>
+                <th>Campanha</th>
+                <th>Empreendimento</th>
+                <th>Status</th>
+                <th>Enviado em</th>
+                <th>Respondido em</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leads.map((lead: Lead) => (
+                <tr key={lead.id}>
+                  <td className="phone">{lead.telefone}</td>
+                  <td className="name">{lead.nome_lead}</td>
+                  <td className="campaign">{lead.nome_campanha || '-'}</td>
+                  <td className="campaign">{lead.empreendimento_nome || '-'}</td>
+                  <td className="status">
+                    <span
+                      className="status-badge"
+                      style={{ backgroundColor: getStatusColor(lead.status_reativacao) }}
+                    >
+                      {getStatusLabel(lead.status_reativacao)}
+                    </span>
+                  </td>
+                  <td className="date">
+                    {lead.data_envio.toLocaleString('pt-BR', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </td>
+                  <td className="date">
+                    {lead.data_resposta
+                      ? lead.data_resposta.toLocaleString('pt-BR', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
           <div className="empty-state">
             <Icon name="inbox" size={32} />
             <p>Nenhum lead encontrado</p>

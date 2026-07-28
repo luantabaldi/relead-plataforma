@@ -4,7 +4,8 @@
   gap: 24px;
   padding: 24px;
   background: #FDFBF7;
-  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 .leads-header {
@@ -108,10 +109,20 @@
   gap: 12px;
 }
 
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
 .filter-group {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+select.filter-input {
+  cursor: pointer;
 }
 
 .filter-group label {
@@ -177,54 +188,13 @@
   color: white;
 }
 
-/* Empreendimentos Container */
-.empreendimentos-container {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.empreendimento-section {
+/* Lista de Leads */
+.leads-list-container {
   background: white;
   border: 1px solid #E8E4E0;
   border-radius: 6px;
-  overflow: hidden;
-}
-
-.empreendimento-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  background: #FDFBF7;
-  cursor: pointer;
-  border-bottom: 1px solid #E8E4E0;
-  transition: background 0.2s ease;
-}
-
-.empreendimento-header:hover {
-  background: #F5F3F0;
-}
-
-.empreendimento-title {
-  font-family: 'Google Sans', sans-serif;
-  font-size: 14px;
-  font-weight: 500;
-  color: #2C2420;
+  overflow: auto;
   flex: 1;
-}
-
-.empreendimento-count {
-  font-family: 'Space Mono', monospace;
-  font-size: 12px;
-  color: #999;
-  background: white;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.empreendimento-leads {
-  overflow-x: auto;
 }
 
 /* Leads Table */
@@ -236,6 +206,9 @@
 }
 
 .leads-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   background: #FDFBF7;
   border-bottom: 2px solid #E8E4E0;
 }
