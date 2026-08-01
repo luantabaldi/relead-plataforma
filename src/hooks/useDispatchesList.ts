@@ -37,41 +37,53 @@ export const useDispatchesList = (filters: FilterOptions): UseDispatchesListStat
       if (!hasLoadedOnce.current) setIsLoading(true);
       setError(null);
 
-      let query = supabase
-        .from('leads_reativacao')
-        .select('*')
-        .order('data_envio', { ascending: false });
+      const buildQuery = () => {
+        let q = supabase
+          .from('leads_reativacao')
+          .select('*')
+          .order('data_envio', { ascending: false });
 
-      // Filtro: Campanhas
-      if (filters.campanhas.length > 0) {
-        query = query.in('tipo_campanha', filters.campanhas);
-      }
+        // Filtro: Campanhas
+        if (filters.campanhas.length > 0) {
+          q = q.in('tipo_campanha', filters.campanhas);
+        }
 
-      // Filtro: Status (mapear status_reativacao para nossos status)
-      if (filters.statuses.length > 0) {
-        const mappedStatuses = filters.statuses.map(s => {
-          const lower = s.toLowerCase().trim();
-          if (lower === 'sem_interesse') return 'Sem interesse';
-          return lower.charAt(0).toUpperCase() + lower.slice(1);
-        });
-        query = query.in('status_reativacao', mappedStatuses);
-      }
+        // Filtro: Status (mapear status_reativacao para nossos status)
+        if (filters.statuses.length > 0) {
+          const mappedStatuses = filters.statuses.map(s => {
+            const lower = s.toLowerCase().trim();
+            if (lower === 'sem_interesse') return 'Sem interesse';
+            return lower.charAt(0).toUpperCase() + lower.slice(1);
+          });
+          q = q.in('status_reativacao', mappedStatuses);
+        }
 
-      // Filtro: Data
-      const dataInicio = filters.dataInicio.toISOString();
-      const dataFim = filters.dataFim.toISOString();
-      query = query
-        .gte('data_envio', dataInicio)
-        .lte('data_envio', dataFim);
+        // Filtro: Data
+        const dataInicio = filters.dataInicio.toISOString();
+        const dataFim = filters.dataFim.toISOString();
+        return q.gte('data_envio', dataInicio).lte('data_envio', dataFim);
+      };
 
-      const { data, error: queryError } = await query;
+      // O PostgREST corta a resposta em 1000 linhas por padrão — sem paginar,
+      // qualquer período com mais de 1000 leads ficava "travado" nesse número.
+      // Pagina em blocos de 1000 via .range() até a página vir incompleta.
+      const PAGE_SIZE = 1000;
+      const MAX_PAGES = 50; // trava de segurança (50k leads) contra loop indevido
+      let allRows: any[] = [];
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const from = page * PAGE_SIZE;
+        const { data: pageData, error: queryError } = await buildQuery().range(from, from + PAGE_SIZE - 1);
 
-      if (queryError) {
-        throw new Error(queryError.message);
+        if (queryError) {
+          throw new Error(queryError.message);
+        }
+
+        allRows = allRows.concat(pageData || []);
+        if (!pageData || pageData.length < PAGE_SIZE) break;
       }
 
       // Filtro: Busca por nome/telefone (feito em memória)
-      let filtered = data || [];
+      let filtered = allRows;
       if (filters.busca) {
         const searchLower = filters.busca.toLowerCase();
         filtered = filtered.filter(

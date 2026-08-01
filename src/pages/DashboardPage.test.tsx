@@ -151,11 +151,19 @@ describe('DashboardPage - Gerenciar CRUD', () => {
           maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
         };
       }
-      if (table === 'custos_conversas_meta' || table === 'v_disparos_custo') {
+      if (table === 'custos_conversas_meta') {
         return {
           select: jest.fn().mockReturnThis(),
           gte: jest.fn().mockReturnThis(),
           lte: jest.fn().mockResolvedValue({ data: [], error: null }),
+        };
+      }
+      if (table === 'v_disparos_custo') {
+        return {
+          select: jest.fn().mockReturnThis(),
+          gte: jest.fn().mockReturnThis(),
+          lte: jest.fn().mockReturnThis(),
+          range: jest.fn().mockResolvedValue({ data: [], error: null }),
         };
       }
       return {

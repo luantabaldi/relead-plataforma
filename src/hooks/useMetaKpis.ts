@@ -74,7 +74,32 @@ export const useMetaKpis = (period: MetaKpisPeriod): UseMetaKpisState => {
       const dataInicioIso = period.dataInicio.toISOString();
       const dataFimIso = period.dataFim.toISOString();
 
-      const [numeroResult, templatesResult, custosResult, disparosResult] = await Promise.all([
+      // O PostgREST corta a resposta em 1000 linhas por padrão — sem paginar,
+      // qualquer período com mais de 1000 disparos ficava "travado" nesse número
+      // e os totais (custo, respondidos, reativados, disparos por template) saíam
+      // subcontados em relação aos números reais da Meta.
+      const fetchAllDisparos = async () => {
+        const PAGE_SIZE = 1000;
+        const MAX_PAGES = 50; // trava de segurança (50k disparos) contra loop indevido
+        let allRows: any[] = [];
+        for (let page = 0; page < MAX_PAGES; page++) {
+          const from = page * PAGE_SIZE;
+          const { data: pageData, error: pageError } = await supabase
+            .from('v_disparos_custo')
+            .select('*')
+            .gte('data_envio', dataInicioIso)
+            .lte('data_envio', dataFimIso)
+            .range(from, from + PAGE_SIZE - 1);
+
+          if (pageError) throw pageError;
+
+          allRows = allRows.concat(pageData || []);
+          if (!pageData || pageData.length < PAGE_SIZE) break;
+        }
+        return allRows;
+      };
+
+      const [numeroResult, templatesResult, custosResult, disparosRows] = await Promise.all([
         supabase.from('numeros_whatsapp_status').select('*').limit(1).maybeSingle(),
         supabase.from('templates_wpp').select('*').order('nome', { ascending: true }),
         supabase
@@ -82,17 +107,12 @@ export const useMetaKpis = (period: MetaKpisPeriod): UseMetaKpisState => {
           .select('*')
           .gte('data', dataInicioStr)
           .lte('data', dataFimStr),
-        supabase
-          .from('v_disparos_custo')
-          .select('*')
-          .gte('data_envio', dataInicioIso)
-          .lte('data_envio', dataFimIso),
+        fetchAllDisparos(),
       ]);
 
       if (numeroResult.error) throw numeroResult.error;
       if (templatesResult.error) throw templatesResult.error;
       if (custosResult.error) throw custosResult.error;
-      if (disparosResult.error) throw disparosResult.error;
 
       setNumero(numeroResult.data || null);
 
@@ -111,7 +131,7 @@ export const useMetaKpis = (period: MetaKpisPeriod): UseMetaKpisState => {
           .sort((a, b) => a.data.localeCompare(b.data))
       );
 
-      const disparos = disparosResult.data || [];
+      const disparos = disparosRows || [];
       const respondidos = disparos.filter((d: any) => isRespondido(d.status_reativacao)).length;
       const reativados = disparos.filter((d: any) => isReativado(d.status_reativacao)).length;
       setTotalRespondidos(respondidos);
