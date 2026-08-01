@@ -14,6 +14,7 @@ describe('DispatchForm - Templates & Empreendimentos Dropdown', () => {
   const mockDbTemplates = [
     { id: 't1', nome: 'prosp_template_1', tipo: 'prospeccao', status_meta: 'APPROVED' },
     { id: 't2', nome: 'reat_template_1', tipo: 'reativacao', status_meta: 'APPROVED' },
+    { id: 't3', nome: 'novo_template_meta', tipo: 'nao_classificado', status_meta: 'APPROVED' },
   ];
 
   const mockDbEmpreendimentos = [
@@ -63,16 +64,20 @@ describe('DispatchForm - Templates & Empreendimentos Dropdown', () => {
     
     // Verificamos as opções listadas no dropdown de templates
     const options = within(templateSelect).getAllByRole('option');
-    expect(options.length).toBe(2); // "Selecione um template", "prosp_template_1"
+    expect(options.length).toBe(3); // "Selecione um template", "prosp_template_1", "novo_template_meta" (não classificado)
     expect(options[1].textContent).toBe('prosp_template_1');
+    expect(options[2].textContent).toBe('novo_template_meta — classifique o tipo em Gerenciar');
+    expect((options[2] as HTMLOptionElement).disabled).toBe(true);
 
     // Mudar tipo de campanha para Reativação
     fireEvent.change(campaignTypeSelect, { target: { value: 'reativacao' } });
 
     // Agora o select de templates deve ser filtrado para mostrar apenas templates de reativação
+    // + o não classificado, que aparece sempre (desabilitado) até ser classificado na aba Gerenciar
     const updatedOptions = within(templateSelect).getAllByRole('option');
-    expect(updatedOptions.length).toBe(2); // "Selecione um template", "reat_template_1"
+    expect(updatedOptions.length).toBe(3); // "Selecione um template", "reat_template_1", "novo_template_meta"
     expect(updatedOptions[1].textContent).toBe('reat_template_1');
+    expect(updatedOptions[2].textContent).toBe('novo_template_meta — classifique o tipo em Gerenciar');
   });
 
   it('deve carregar empreendimentos ativos e preencher campos automaticamente ao selecionar', async () => {

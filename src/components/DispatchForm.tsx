@@ -702,12 +702,19 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
               <option value="">Selecione um template</option>
             )}
             {!isLoadingTemplates && templates
-              .filter((t) => !t.tipo || t.tipo === formData.campaignType)
+              .filter((t) => !t.tipo || t.tipo === formData.campaignType || t.tipo === 'nao_classificado')
               .map((t) => {
                 const approved = isTemplateApproved(t);
+                const unclassified = t.tipo === 'nao_classificado';
+                let suffix = '';
+                if (!approved) {
+                  suffix = ` — ${t.status_meta === 'REJECTED' ? 'rejeitado pela Meta' : 'aguardando aprovação'}`;
+                } else if (unclassified) {
+                  suffix = ' — classifique o tipo em Gerenciar';
+                }
                 return (
-                  <option key={t.id} value={t.id} disabled={!approved}>
-                    {t.nome}{!approved ? ` — ${t.status_meta === 'REJECTED' ? 'rejeitado pela Meta' : 'aguardando aprovação'}` : ''}
+                  <option key={t.id} value={t.id} disabled={!approved || unclassified}>
+                    {t.nome}{suffix}
                   </option>
                 );
               })}
@@ -717,7 +724,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
               Este template ainda não foi aprovado pela Meta e não pode ser usado em um disparo real.
             </span>
           ) : (
-            <span className="hint">Cadastre novos modelos na aba Gerenciar.</span>
+            <span className="hint">Templates novos sincronizados da Meta aparecem aqui após classificados na aba Gerenciar.</span>
           )}
         </div>
 
