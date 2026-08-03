@@ -29,7 +29,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const input = $input.first().json;\n\n// === META VERIFICATION (GET) ===\nconst hubMode = input['hub.mode'] || (input.query && input.query['hub.mode']);\nif (hubMode === 'subscribe') {\n  const verifyToken = input['hub.verify_token'] || (input.query && input.query['hub.verify_token']);\n  if (verifyToken === 'evolution') {\n    const challenge = input['hub.challenge'] || (input.query && input.query['hub.challenge']);\n    return [{ json: { isVerification: true, challenge: String(challenge) } }];\n  }\n  return [];\n}\n\n// === META MESSAGE (POST) ===\nconst body = input.body || input;\nif (!body || body.object !== 'whatsapp_business_account') return [];\n\nconst entry = body.entry && body.entry[0];\nif (!entry || !entry.changes) return [];\n\nconst changes = entry.changes[0];\nif (!changes || changes.field !== 'messages') return [];\n\nconst value = changes.value;\nif (!value || !value.messages || !value.messages[0]) return [];\n\nconst message = value.messages[0];\n\n// Extrair texto de diferentes tipos de mensagem\nlet messageText = '';\nif (message.type === 'text') {\n  messageText = message.text.body;\n} else if (message.type === 'button') {\n  messageText = message.button.text || message.button.payload || '';\n} else if (message.type === 'interactive') {\n  if (message.interactive.button_reply) {\n    messageText = message.interactive.button_reply.title || '';\n  } else if (message.interactive.list_reply) {\n    messageText = message.interactive.list_reply.title || '';\n  }\n} else {\n  // Tipo nao suportado (image, audio, video, sticker, etc)\n  return [];\n}\n\nif (!messageText) return [];\n\nlet telefone = message.from;\n\n// Normalizar telefone BR: Meta envia 12 digitos (sem 9o digito)\n// Supabase tem 13 digitos (com 9o digito)\nif (telefone.startsWith('55') && telefone.length === 12) {\n  const ddd = telefone.substring(2, 4);\n  const numero = telefone.substring(4);\n  telefone = '55' + ddd + '9' + numero;\n}\n\nconst nomeContato = (value.contacts && value.contacts[0] && value.contacts[0].profile && value.contacts[0].profile.name) || 'Cliente';\nconst messageId = message.id;\nconst timestamp = message.timestamp;\n\nreturn [{ json: { isVerification: false, telefone, nomeContato, messageText, messageId, timestamp } }];"
+          "jsCode": "const input = $input.first().json;\n\n// === META VERIFICATION (GET) ===\nconst hubMode = input['hub.mode'] || (input.query && input.query['hub.mode']);\nif (hubMode === 'subscribe') {\n  const verifyToken = input['hub.verify_token'] || (input.query && input.query['hub.verify_token']);\n  if (verifyToken === 'evolution') {\n    const challenge = input['hub.challenge'] || (input.query && input.query['hub.challenge']);\n    return [{ json: { isVerification: true, challenge: String(challenge) } }];\n  }\n  return [];\n}\n\n// === META MESSAGE (POST) ===\nconst body = input.body || input;\nif (!body || body.object !== 'whatsapp_business_account') return [];\n\nconst entry = body.entry && body.entry[0];\nif (!entry || !entry.changes) return [];\n\nconst changes = entry.changes[0];\nif (!changes || changes.field !== 'messages') return [];\n\nconst value = changes.value;\n\n// === STATUS DE ENTREGA (sent/delivered/read/failed) ===\n// A Meta manda os eventos de status da mensagem enviada no mesmo campo\n// 'messages', mas com value.statuses em vez de value.messages. Sem tratar\n// isso aqui, uma falha reportada pela Meta depois do envio (ex.: \"Integridade\n// do ecossistema: a Meta optou por nao entregar\") nunca atualizava o Supabase,\n// e o lead ficava marcado \"Enviado\" pra sempre mesmo a mensagem nunca tendo\n// sido entregue de fato.\nif (value && value.statuses && value.statuses[0]) {\n  const statusEvento = value.statuses[0];\n  if (statusEvento.status !== 'failed') return []; // sent/delivered/read: nada a fazer aqui\n\n  let telefoneStatus = statusEvento.recipient_id || '';\n  if (telefoneStatus.startsWith('55') && telefoneStatus.length === 12) {\n    const ddd = telefoneStatus.substring(2, 4);\n    const numero = telefoneStatus.substring(4);\n    telefoneStatus = '55' + ddd + '9' + numero;\n  }\n\n  const erroInfo = (statusEvento.errors && statusEvento.errors[0]) || {};\n\n  return [{\n    json: {\n      isVerification: false,\n      isStatusUpdate: true,\n      telefone: telefoneStatus,\n      erroTitulo: erroInfo.title || 'Falha reportada pela Meta pos-envio',\n      erroCodigo: erroInfo.code || null\n    }\n  }];\n}\n\nif (!value || !value.messages || !value.messages[0]) return [];\n\nconst message = value.messages[0];\n\n// Extrair texto de diferentes tipos de mensagem\nlet messageText = '';\nif (message.type === 'text') {\n  messageText = message.text.body;\n} else if (message.type === 'button') {\n  messageText = message.button.text || message.button.payload || '';\n} else if (message.type === 'interactive') {\n  if (message.interactive.button_reply) {\n    messageText = message.interactive.button_reply.title || '';\n  } else if (message.interactive.list_reply) {\n    messageText = message.interactive.list_reply.title || '';\n  }\n} else {\n  // Tipo nao suportado (image, audio, video, sticker, etc)\n  return [];\n}\n\nif (!messageText) return [];\n\nlet telefone = message.from;\n\n// Normalizar telefone BR: Meta envia 12 digitos (sem 9o digito)\n// Supabase tem 13 digitos (com 9o digito)\nif (telefone.startsWith('55') && telefone.length === 12) {\n  const ddd = telefone.substring(2, 4);\n  const numero = telefone.substring(4);\n  telefone = '55' + ddd + '9' + numero;\n}\n\nconst nomeContato = (value.contacts && value.contacts[0] && value.contacts[0].profile && value.contacts[0].profile.name) || 'Cliente';\nconst messageId = message.id;\nconst timestamp = message.timestamp;\n\nreturn [{ json: { isVerification: false, telefone, nomeContato, messageText, messageId, timestamp } }];"
         },
         "id": "roteador-meta",
         "name": "Roteador Meta",
@@ -39,6 +39,78 @@
         ],
         "type": "n8n-nodes-base.code",
         "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "combinator": "and",
+            "conditions": [
+              {
+                "id": "cv-falha",
+                "leftValue": "={{ $json.isStatusUpdate }}",
+                "operator": {
+                  "operation": "equals",
+                  "type": "boolean"
+                },
+                "rightValue": true
+              }
+            ],
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            }
+          },
+          "options": {}
+        },
+        "id": "if-falha-entrega-meta",
+        "name": "Erro de Entrega Reportado pela Meta?",
+        "position": [
+          336,
+          368
+        ],
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2
+      },
+      {
+        "parameters": {
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "jsonBody": "={{ JSON.stringify({ status_reativacao: 'Erro no Disparo', tipo_erro: 'Falha de entrega (API)' }) }}",
+          "method": "PATCH",
+          "options": {},
+          "sendBody": true,
+          "sendHeaders": true,
+          "specifyBody": "json",
+          "url": "=https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?status_reativacao=eq.Enviado&or=(telefone.eq.{{ $('Roteador Meta').first().json.telefone }},telefone.eq.{{ $('Roteador Meta').first().json.telefone.length === 13 ? $('Roteador Meta').first().json.telefone.slice(0, 4) + $('Roteador Meta').first().json.telefone.slice(5) : $('Roteador Meta').first().json.telefone }})"
+        },
+        "id": "update-lead-failed-status",
+        "name": "Marcar Falha Pos-Envio no Supabase",
+        "position": [
+          560,
+          368
+        ],
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2
       },
       {
         "parameters": {
@@ -829,7 +901,36 @@
           [
             {
               "index": 0,
+              "node": "Erro de Entrega Reportado pela Meta?",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Erro de Entrega Reportado pela Meta?": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Marcar Falha Pos-Envio no Supabase",
+              "type": "main"
+            }
+          ],
+          [
+            {
+              "index": 0,
               "node": "Eh Verificacao",
+              "type": "main"
+            }
+          ]
+        ]
+      },
+      "Marcar Falha Pos-Envio no Supabase": {
+        "main": [
+          [
+            {
+              "index": 0,
+              "node": "Responder OK",
               "type": "main"
             }
           ]
@@ -1126,7 +1227,7 @@
         },
         {
           "parameters": {
-            "jsCode": "const input = $input.first().json;\n\n// === META VERIFICATION (GET) ===\nconst hubMode = input['hub.mode'] || (input.query && input.query['hub.mode']);\nif (hubMode === 'subscribe') {\n  const verifyToken = input['hub.verify_token'] || (input.query && input.query['hub.verify_token']);\n  if (verifyToken === 'evolution') {\n    const challenge = input['hub.challenge'] || (input.query && input.query['hub.challenge']);\n    return [{ json: { isVerification: true, challenge: String(challenge) } }];\n  }\n  return [];\n}\n\n// === META MESSAGE (POST) ===\nconst body = input.body || input;\nif (!body || body.object !== 'whatsapp_business_account') return [];\n\nconst entry = body.entry && body.entry[0];\nif (!entry || !entry.changes) return [];\n\nconst changes = entry.changes[0];\nif (!changes || changes.field !== 'messages') return [];\n\nconst value = changes.value;\nif (!value || !value.messages || !value.messages[0]) return [];\n\nconst message = value.messages[0];\n\n// Extrair texto de diferentes tipos de mensagem\nlet messageText = '';\nif (message.type === 'text') {\n  messageText = message.text.body;\n} else if (message.type === 'button') {\n  messageText = message.button.text || message.button.payload || '';\n} else if (message.type === 'interactive') {\n  if (message.interactive.button_reply) {\n    messageText = message.interactive.button_reply.title || '';\n  } else if (message.interactive.list_reply) {\n    messageText = message.interactive.list_reply.title || '';\n  }\n} else {\n  // Tipo nao suportado (image, audio, video, sticker, etc)\n  return [];\n}\n\nif (!messageText) return [];\n\nlet telefone = message.from;\n\n// Normalizar telefone BR: Meta envia 12 digitos (sem 9o digito)\n// Supabase tem 13 digitos (com 9o digito)\nif (telefone.startsWith('55') && telefone.length === 12) {\n  const ddd = telefone.substring(2, 4);\n  const numero = telefone.substring(4);\n  telefone = '55' + ddd + '9' + numero;\n}\n\nconst nomeContato = (value.contacts && value.contacts[0] && value.contacts[0].profile && value.contacts[0].profile.name) || 'Cliente';\nconst messageId = message.id;\nconst timestamp = message.timestamp;\n\nreturn [{ json: { isVerification: false, telefone, nomeContato, messageText, messageId, timestamp } }];"
+            "jsCode": "const input = $input.first().json;\n\n// === META VERIFICATION (GET) ===\nconst hubMode = input['hub.mode'] || (input.query && input.query['hub.mode']);\nif (hubMode === 'subscribe') {\n  const verifyToken = input['hub.verify_token'] || (input.query && input.query['hub.verify_token']);\n  if (verifyToken === 'evolution') {\n    const challenge = input['hub.challenge'] || (input.query && input.query['hub.challenge']);\n    return [{ json: { isVerification: true, challenge: String(challenge) } }];\n  }\n  return [];\n}\n\n// === META MESSAGE (POST) ===\nconst body = input.body || input;\nif (!body || body.object !== 'whatsapp_business_account') return [];\n\nconst entry = body.entry && body.entry[0];\nif (!entry || !entry.changes) return [];\n\nconst changes = entry.changes[0];\nif (!changes || changes.field !== 'messages') return [];\n\nconst value = changes.value;\n\n// === STATUS DE ENTREGA (sent/delivered/read/failed) ===\n// A Meta manda os eventos de status da mensagem enviada no mesmo campo\n// 'messages', mas com value.statuses em vez de value.messages. Sem tratar\n// isso aqui, uma falha reportada pela Meta depois do envio (ex.: \"Integridade\n// do ecossistema: a Meta optou por nao entregar\") nunca atualizava o Supabase,\n// e o lead ficava marcado \"Enviado\" pra sempre mesmo a mensagem nunca tendo\n// sido entregue de fato.\nif (value && value.statuses && value.statuses[0]) {\n  const statusEvento = value.statuses[0];\n  if (statusEvento.status !== 'failed') return []; // sent/delivered/read: nada a fazer aqui\n\n  let telefoneStatus = statusEvento.recipient_id || '';\n  if (telefoneStatus.startsWith('55') && telefoneStatus.length === 12) {\n    const ddd = telefoneStatus.substring(2, 4);\n    const numero = telefoneStatus.substring(4);\n    telefoneStatus = '55' + ddd + '9' + numero;\n  }\n\n  const erroInfo = (statusEvento.errors && statusEvento.errors[0]) || {};\n\n  return [{\n    json: {\n      isVerification: false,\n      isStatusUpdate: true,\n      telefone: telefoneStatus,\n      erroTitulo: erroInfo.title || 'Falha reportada pela Meta pos-envio',\n      erroCodigo: erroInfo.code || null\n    }\n  }];\n}\n\nif (!value || !value.messages || !value.messages[0]) return [];\n\nconst message = value.messages[0];\n\n// Extrair texto de diferentes tipos de mensagem\nlet messageText = '';\nif (message.type === 'text') {\n  messageText = message.text.body;\n} else if (message.type === 'button') {\n  messageText = message.button.text || message.button.payload || '';\n} else if (message.type === 'interactive') {\n  if (message.interactive.button_reply) {\n    messageText = message.interactive.button_reply.title || '';\n  } else if (message.interactive.list_reply) {\n    messageText = message.interactive.list_reply.title || '';\n  }\n} else {\n  // Tipo nao suportado (image, audio, video, sticker, etc)\n  return [];\n}\n\nif (!messageText) return [];\n\nlet telefone = message.from;\n\n// Normalizar telefone BR: Meta envia 12 digitos (sem 9o digito)\n// Supabase tem 13 digitos (com 9o digito)\nif (telefone.startsWith('55') && telefone.length === 12) {\n  const ddd = telefone.substring(2, 4);\n  const numero = telefone.substring(4);\n  telefone = '55' + ddd + '9' + numero;\n}\n\nconst nomeContato = (value.contacts && value.contacts[0] && value.contacts[0].profile && value.contacts[0].profile.name) || 'Cliente';\nconst messageId = message.id;\nconst timestamp = message.timestamp;\n\nreturn [{ json: { isVerification: false, telefone, nomeContato, messageText, messageId, timestamp } }];"
           },
           "id": "roteador-meta",
           "name": "Roteador Meta",
@@ -1136,6 +1237,78 @@
           ],
           "type": "n8n-nodes-base.code",
           "typeVersion": 2
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "combinator": "and",
+              "conditions": [
+                {
+                  "id": "cv-falha",
+                  "leftValue": "={{ $json.isStatusUpdate }}",
+                  "operator": {
+                    "operation": "equals",
+                    "type": "boolean"
+                  },
+                  "rightValue": true
+                }
+              ],
+              "options": {
+                "caseSensitive": true,
+                "leftValue": "",
+                "typeValidation": "strict",
+                "version": 1
+              }
+            },
+            "options": {}
+          },
+          "id": "if-falha-entrega-meta",
+          "name": "Erro de Entrega Reportado pela Meta?",
+          "position": [
+            336,
+            368
+          ],
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2
+        },
+        {
+          "parameters": {
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "apikey",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Authorization",
+                  "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlcWx4aHZqcnFxZmtzcnhpZndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDgzMTIsImV4cCI6MjA5OTg4NDMxMn0.wGITDGQqvwAV0d58VN75pbKHW3xc9qZbesj5FTrue60"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "name": "Prefer",
+                  "value": "return=minimal"
+                }
+              ]
+            },
+            "jsonBody": "={{ JSON.stringify({ status_reativacao: 'Erro no Disparo', tipo_erro: 'Falha de entrega (API)' }) }}",
+            "method": "PATCH",
+            "options": {},
+            "sendBody": true,
+            "sendHeaders": true,
+            "specifyBody": "json",
+            "url": "=https://reqlxhvjrqqfksrxifwl.supabase.co/rest/v1/leads_reativacao?status_reativacao=eq.Enviado&or=(telefone.eq.{{ $('Roteador Meta').first().json.telefone }},telefone.eq.{{ $('Roteador Meta').first().json.telefone.length === 13 ? $('Roteador Meta').first().json.telefone.slice(0, 4) + $('Roteador Meta').first().json.telefone.slice(5) : $('Roteador Meta').first().json.telefone }})"
+          },
+          "id": "update-lead-failed-status",
+          "name": "Marcar Falha Pos-Envio no Supabase",
+          "position": [
+            560,
+            368
+          ],
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2
         },
         {
           "parameters": {
@@ -1926,7 +2099,36 @@
             [
               {
                 "index": 0,
+                "node": "Erro de Entrega Reportado pela Meta?",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Erro de Entrega Reportado pela Meta?": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Marcar Falha Pos-Envio no Supabase",
+                "type": "main"
+              }
+            ],
+            [
+              {
+                "index": 0,
                 "node": "Eh Verificacao",
+                "type": "main"
+              }
+            ]
+          ]
+        },
+        "Marcar Falha Pos-Envio no Supabase": {
+          "main": [
+            [
+              {
+                "index": 0,
+                "node": "Responder OK",
                 "type": "main"
               }
             ]

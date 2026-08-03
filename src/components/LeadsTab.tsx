@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useLeadsList, Lead, MOTIVOS_OBJECAO, TIPOS_ERRO, isSemInteresse, isErro, isRespostaAutomatica } from '../hooks/useLeadsList';
 import { Icon } from './Icon';
 import '../styles/leads-tab.css';
 
 export const LeadsTab: React.FC = () => {
-  const { leads, allLeads, isLoading, filters, setFilters, stats, campanhaOptions, empreendimentoOptions, updateLeadClassification } = useLeadsList();
-  const [showFilters, setShowFilters] = useState(false);
+  const { leads, allLeads, isLoading, filters, setFilters, stats, campanhaOptions, empreendimentoOptions, updateLeadClassification, hasMoreData } = useLeadsList();
 
   const handleClearFilters = () => {
     setFilters({
@@ -54,10 +53,10 @@ export const LeadsTab: React.FC = () => {
 
   return (
     <div className="leads-tab-container">
-      {/* Header e Filtros */}
+      {/* Header */}
       <div className="leads-header">
         <div className="header-title">
-          <h2>Base de Leads</h2>
+          <h2>Base de <em>Leads</em></h2>
           <span className="lead-count">
             {leads.length} de {allLeads.length} leads
           </span>
@@ -86,16 +85,7 @@ export const LeadsTab: React.FC = () => {
 
       {/* Filter Panel */}
       <div className="filter-panel">
-        <button
-          className="filter-toggle"
-          onClick={() => setShowFilters(!showFilters)}
-        >
-          <Icon name="filter" size={16} />
-          Filtros
-        </button>
-
-        {showFilters && (
-          <div className="filter-content">
+        <div className="filter-content">
             <div className="filter-grid">
               <div className="filter-group">
                 <label>Buscar por Telefone ou Nome</label>
@@ -180,12 +170,17 @@ export const LeadsTab: React.FC = () => {
                 Limpar filtros
               </button>
             )}
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Lista de Leads */}
       <div className="leads-list-container">
+        {hasMoreData && (
+          <div style={{ background: 'var(--amber-50)', border: '1px solid var(--amber-200)', color: 'var(--amber-900)', padding: '12px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="alert-circle" size={16} />
+            Exibindo primeiros 1.000 leads. Use filtros para refinar a busca.
+          </div>
+        )}
         {leads.length > 0 ? (
           <table className="leads-table">
             <thead>

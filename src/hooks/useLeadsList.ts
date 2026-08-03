@@ -72,6 +72,7 @@ export const useLeadsList = () => {
   const [empreendimentosMap, setEmpreendimentosMap] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState<LeadsFilters>(defaultFilters);
+  const [hasMoreData, setHasMoreData] = useState(false);
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -80,9 +81,10 @@ export const useLeadsList = () => {
       const [leadsResult, empreendimentosResult] = await Promise.all([
         supabase
           .from('leads_reativacao')
-          .select('id, telefone, nome_lead, tipo_campanha, status_reativacao, empreendimento_id, data_envio, data_resposta, ultima_resposta_lead, nome_campanha, motivo_objecao, tipo_erro')
+          .select('id, telefone, nome_lead, tipo_campanha, status_reativacao, empreendimento_id, data_envio, data_resposta, ultima_resposta_lead, nome_campanha, motivo_objecao, tipo_erro', { count: 'exact' })
           .not('nome_lead', 'is', null)
-          .order('data_envio', { ascending: false }),
+          .order('data_envio', { ascending: false })
+          .limit(1000),
         supabase
           .from('empreendimentos')
           .select('id, nome'),
@@ -104,6 +106,8 @@ export const useLeadsList = () => {
       }));
 
       setLeads(leadsData);
+      // Check if there are more than 1000 leads
+      setHasMoreData((leadsResult.count || 0) > 1000);
     } catch (err) {
       console.warn('⚠️ Erro ao buscar leads:', err);
       setLeads([]);
@@ -226,5 +230,6 @@ export const useLeadsList = () => {
     campanhaOptions,
     empreendimentoOptions,
     updateLeadClassification,
+    hasMoreData,
   };
 };

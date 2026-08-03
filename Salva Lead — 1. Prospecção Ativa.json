@@ -80,7 +80,9 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyAFPQFRq7wwTAgY_--gNmTqDVK7qe442qE",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ contents: [{ parts: [{ text: $json.prompt }] }] }) }}",
@@ -93,7 +95,13 @@
         304
       ],
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2
+      "typeVersion": 4.2,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CbXznqtnJPDx7WqX",
+          "name": "Google Gemini (PaLM) API"
+        }
+      }
     },
     {
       "parameters": {
