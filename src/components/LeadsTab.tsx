@@ -177,7 +177,7 @@ export const LeadsTab: React.FC = () => {
       <div className="leads-list-container">
         {hasMoreData && (
           <div style={{ background: 'var(--amber-50)', border: '1px solid var(--amber-200)', color: 'var(--amber-900)', padding: '12px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Icon name="alert-circle" size={16} />
+            <Icon name="alert-triangle" size={16} />
             Exibindo primeiros 1.000 leads. Use filtros para refinar a busca.
           </div>
         )}
