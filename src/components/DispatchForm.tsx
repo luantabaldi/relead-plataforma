@@ -22,6 +22,7 @@ const TEMPLATES = [
 
 export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const channelRef = useRef<any>(null);
 
   const [formData, setFormData] = useState({
@@ -32,16 +33,19 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
     empreendimentoId: '',
     empreendimentoNome: '',
     observacao: '',
+    imagemUrl: '',
   });
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [fileName, setFileName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState('');
   const [status, setStatus] = useState<Status>(null);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
   const [isLoadingEmpreendimentos, setIsLoadingEmpreendimentos] = useState(true);
 
-  const [templates, setTemplates] = useState<Array<{ id: string; nome: string; tipo?: string; status_meta?: string }>>([]);
+  const [templates, setTemplates] = useState<Array<{ id: string; nome: string; tipo?: string; status_meta?: string; componentes?: any[] }>>([]);
   const [showReview, setShowReview] = useState(false);
   const [empreendimentosList, setEmpreendimentosList] = useState<Array<{ id: string; nome: string; descricao_ia: string; ativo: boolean }>>([]);
   const [selectedEmpreendimentoId, setSelectedEmpreendimentoId] = useState('');
@@ -68,7 +72,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
         if (error) throw error;
 
         if (data && data.length > 0) {
-          setTemplates(data.map((t: any) => ({ id: t.id, nome: t.nome, tipo: t.tipo, status_meta: t.status_meta })));
+          setTemplates(data.map((t: any) => ({ id: t.id, nome: t.nome, tipo: t.tipo, status_meta: t.status_meta, componentes: t.componentes })));
         } else {
           setTemplates(TEMPLATES.map(t => ({ id: t.id, nome: t.name })));
         }
@@ -194,6 +198,41 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
     reader.readAsText(file);
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setImageUploadError('Selecione um arquivo de imagem (JPG, PNG ou WEBP).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setImageUploadError('Imagem muito grande. O limite é 5 MB.');
+      return;
+    }
+
+    setImageUploadError('');
+    setIsUploadingImage(true);
+
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `campanhas/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('campanha-imagens')
+        .upload(path, file, { cacheControl: '3600', upsert: false });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage.from('campanha-imagens').getPublicUrl(path);
+      set({ imagemUrl: publicUrlData.publicUrl });
+    } catch (err) {
+      setImageUploadError(`Falha no upload: ${err instanceof Error ? err.message : 'erro desconhecido'}`);
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const handleReviewSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setStatus(null);
@@ -209,6 +248,10 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
     const selectedTemplate = templates.find((t) => t.id === formData.templateId);
     if (selectedTemplate && !isTemplateApproved(selectedTemplate)) {
       setStatus({ type: 'err', text: 'O template selecionado ainda não foi aprovado pela Meta. Escolha outro ou aguarde a aprovação.' });
+      return;
+    }
+    if (templateNeedsImage(selectedTemplate) && !formData.imagemUrl.trim()) {
+      setStatus({ type: 'err', text: 'Este template tem imagem no cabeçalho. Faça o upload da imagem antes de continuar.' });
       return;
     }
     if (leads.length === 0) {
@@ -231,6 +274,9 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
       const selectedTemplate = templates.find((t) => t.id === formData.templateId);
       if (selectedTemplate && !isTemplateApproved(selectedTemplate)) {
         throw new Error('O template selecionado ainda não foi aprovado pela Meta.');
+      }
+      if (templateNeedsImage(selectedTemplate) && !formData.imagemUrl.trim()) {
+        throw new Error('Este template tem imagem no cabeçalho. Faça o upload da imagem antes de continuar.');
       }
 
       const leadsToInsert = leads.map((lead) => ({
@@ -352,6 +398,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
             nome_campanha: formData.campaignName,
             tipo_campanha: formData.campaignType,
             template_id: formData.templateId,
+            imagem_url: formData.imagemUrl.trim() || null,
           }),
         });
 
@@ -370,11 +417,14 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
         empreendimentoId: '',
         empreendimentoNome: '',
         observacao: '',
+        imagemUrl: '',
       });
       setLeads([]);
       setFileName('');
       setShowReview(false);
+      setImageUploadError('');
       if (fileInputRef.current) fileInputRef.current.value = '';
+      if (imageInputRef.current) imageInputRef.current.value = '';
 
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Erro desconhecido';
@@ -387,7 +437,10 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
   const set = (patch: Partial<typeof formData>) => setFormData({ ...formData, ...patch });
 
   const isTemplateApproved = (t: { status_meta?: string }) => !t.status_meta || t.status_meta === 'APPROVED';
+  const templateNeedsImage = (t?: { componentes?: any[] }) =>
+    !!t?.componentes?.some((c) => c.type === 'HEADER' && c.format === 'IMAGE');
   const selectedTemplateForForm = templates.find((t) => t.id === formData.templateId);
+  const needsImage = templateNeedsImage(selectedTemplateForForm);
 
   if (progress.active) {
     const pct = progress.total > 0 ? Math.round(((progress.total - progress.pending) / progress.total) * 100) : 0;
@@ -565,6 +618,9 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
           {formData.empreendimentoNome && (
             <ReviewRow label="Empreendimento" value={formData.empreendimentoNome} />
           )}
+          {formData.imagemUrl && (
+            <ReviewRow label="Imagem" value={formData.imagemUrl} />
+          )}
           <ReviewRow label="Destinatários" value={`${leads.length} leads`} />
         </div>
 
@@ -727,6 +783,61 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
             <span className="hint">Templates novos sincronizados da Meta aparecem aqui após classificados na aba Gerenciar.</span>
           )}
         </div>
+
+        {/* Upload da imagem (apenas para templates com header de imagem) */}
+        {needsImage && (
+          <div className="field">
+            <label htmlFor="imagemFileInput">Imagem do template *</label>
+            <input
+              id="imagemFileInput"
+              name="imagemFile"
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              autoComplete="off"
+              style={{ display: 'none' }}
+            />
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              className="btn secondary"
+              style={{ alignSelf: 'flex-start' }}
+              disabled={isUploadingImage}
+            >
+              {isUploadingImage ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                  Enviando…
+                </span>
+              ) : (
+                <>
+                  <Icon name="upload" size={16} />
+                  {formData.imagemUrl ? 'Trocar imagem' : 'Selecionar imagem'}
+                </>
+              )}
+            </button>
+
+            {formData.imagemUrl && !isUploadingImage && (
+              <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <img
+                  src={formData.imagemUrl}
+                  alt="Pré-visualização"
+                  style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--paper-200)' }}
+                />
+                <span className="hint" style={{ margin: 0, wordBreak: 'break-all' }}>{formData.imagemUrl}</span>
+              </div>
+            )}
+
+            {imageUploadError && (
+              <span className="hint" style={{ color: 'var(--red-500)' }}>{imageUploadError}</span>
+            )}
+
+            <span className="hint">
+              Este template tem imagem no cabeçalho. O upload gera automaticamente um link público (JPG, PNG ou WEBP, até 5 MB).
+            </span>
+          </div>
+        )}
 
         {/* Seleção de Empreendimento Cadastrado */}
         <div className="field">
