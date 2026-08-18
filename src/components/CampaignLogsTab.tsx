@@ -16,11 +16,39 @@ export const CampaignLogsTab: React.FC<CampaignLogsTabProps> = ({ visible = true
     setDateRange,
     selectedCampaignName,
     setSelectedCampaignName,
+    selectedTipo,
+    setSelectedTipo,
+    selectedStatus,
+    setSelectedStatus,
     exportToCSV,
   } = useCampaignLogs();
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignLog | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
   const n8nStatus = useN8nStatus();
+
+  const hasActiveFilters = !!(dateRange.start || dateRange.end || selectedCampaignName || selectedTipo || selectedStatus);
+  const clearFilters = () => {
+    setDateRange({ start: null, end: null });
+    setSelectedCampaignName(null);
+    setSelectedTipo(null);
+    setSelectedStatus(null);
+  };
+
+  const selectStyle: React.CSSProperties = {
+    padding: '6px 10px',
+    border: '1px solid var(--paper-300)',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontFamily: 'inherit',
+    backgroundColor: 'white',
+    color: 'var(--ink-500)',
+  };
+  const dateInputStyle: React.CSSProperties = {
+    padding: '6px 10px',
+    border: '1px solid var(--paper-300)',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontFamily: 'inherit',
+  };
 
   if (!visible) return null;
 
@@ -69,134 +97,120 @@ export const CampaignLogsTab: React.FC<CampaignLogsTabProps> = ({ visible = true
           </div>
         </div>
 
-        {/* Filtros */}
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', padding: '12px', backgroundColor: 'var(--paper-50)', borderRadius: '8px', border: '1px solid var(--paper-200)' }}>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            style={{
-              padding: '6px 12px',
-              backgroundColor: showFilters ? 'var(--orange-500)' : 'white',
-              border: '1px solid var(--paper-300)',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 500,
-              color: showFilters ? 'white' : 'var(--ink-500)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <Icon name="filter" size={14} />
-            Filtros
-          </button>
-          <button
-            onClick={exportToCSV}
-            style={{
-              padding: '6px 12px',
-              backgroundColor: 'white',
-              border: '1px solid var(--paper-300)',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 500,
-              color: 'var(--ink-500)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            <Icon name="download" size={14} />
-            Exportar CSV
-          </button>
-          {(dateRange.start || dateRange.end || selectedCampaignName) && (
+        {/* Filtros — expostos direto na barra, sem esconder atrás de um botão genérico */}
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end', padding: '12px', backgroundColor: 'var(--paper-50)', borderRadius: '8px', border: '1px solid var(--paper-200)' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--ink-200)', marginBottom: '4px' }}>
+              Status
+            </label>
+            <select
+              value={selectedStatus || ''}
+              onChange={(e) => setSelectedStatus(e.target.value ? (e.target.value as 'ativa' | 'concluida') : null)}
+              style={selectStyle}
+            >
+              <option value="">Todos</option>
+              <option value="ativa">Ativa</option>
+              <option value="concluida">Concluída</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--ink-200)', marginBottom: '4px' }}>
+              Tipo de campanha
+            </label>
+            <select
+              value={selectedTipo || ''}
+              onChange={(e) => setSelectedTipo(e.target.value || null)}
+              style={selectStyle}
+            >
+              <option value="">Todos</option>
+              <option value="prospeccao">Prospecção</option>
+              <option value="reativacao">Reativação</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--ink-200)', marginBottom: '4px' }}>
+              Criada de
+            </label>
+            <input
+              type="date"
+              value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
+              onChange={(e) => setDateRange({ ...dateRange, start: e.target.value ? new Date(e.target.value) : null })}
+              style={dateInputStyle}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--ink-200)', marginBottom: '4px' }}>
+              até
+            </label>
+            <input
+              type="date"
+              value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''}
+              onChange={(e) => setDateRange({ ...dateRange, end: e.target.value ? new Date(e.target.value) : null })}
+              style={dateInputStyle}
+            />
+          </div>
+
+          <div style={{ minWidth: 160 }}>
+            <label style={{ display: 'block', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--ink-200)', marginBottom: '4px' }}>
+              Campanha
+            </label>
+            <select
+              value={selectedCampaignName || ''}
+              onChange={(e) => setSelectedCampaignName(e.target.value || null)}
+              style={{ ...selectStyle, width: '100%' }}
+            >
+              <option value="">Todas as campanhas</option>
+              {allCampaigns.map(c => (
+                <option key={c.nome_campanha} value={c.nome_campanha}>
+                  {c.nome_campanha}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                style={{
+                  padding: '6px 12px',
+                  backgroundColor: '#fee2e2',
+                  border: '1px solid #fecaca',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  color: '#dc2626',
+                  height: 30,
+                }}
+              >
+                Limpar filtros
+              </button>
+            )}
             <button
-              onClick={() => {
-                setDateRange({ start: null, end: null });
-                setSelectedCampaignName(null);
-              }}
+              onClick={exportToCSV}
               style={{
                 padding: '6px 12px',
-                backgroundColor: '#fee2e2',
-                border: '1px solid #fecaca',
+                backgroundColor: 'white',
+                border: '1px solid var(--paper-300)',
                 borderRadius: '6px',
                 cursor: 'pointer',
                 fontSize: '12px',
                 fontWeight: 500,
-                color: '#dc2626',
+                color: 'var(--ink-500)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                height: 30,
               }}
             >
-              Limpar filtros
+              <Icon name="download" size={14} />
+              Exportar CSV
             </button>
-          )}
-        </div>
-
-        {/* Painel de filtros expandido */}
-        {showFilters && (
-          <div style={{ padding: '12px', backgroundColor: 'white', borderRadius: '8px', border: '1px solid var(--paper-200)', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--ink-200)', marginBottom: '4px' }}>
-                Data Inicial
-              </label>
-              <input
-                type="date"
-                value={dateRange.start ? dateRange.start.toISOString().split('T')[0] : ''}
-                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value ? new Date(e.target.value) : null })}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid var(--paper-200)',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontFamily: 'inherit',
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--ink-200)', marginBottom: '4px' }}>
-                Data Final
-              </label>
-              <input
-                type="date"
-                value={dateRange.end ? dateRange.end.toISOString().split('T')[0] : ''}
-                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value ? new Date(e.target.value) : null })}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid var(--paper-200)',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontFamily: 'inherit',
-                }}
-              />
-            </div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', color: 'var(--ink-200)', marginBottom: '4px' }}>
-                Campanha
-              </label>
-              <select
-                value={selectedCampaignName || ''}
-                onChange={(e) => setSelectedCampaignName(e.target.value || null)}
-                style={{
-                  width: '100%',
-                  padding: '8px',
-                  border: '1px solid var(--paper-200)',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontFamily: 'inherit',
-                  backgroundColor: 'white',
-                }}
-              >
-                <option value="">Todas as campanhas</option>
-                {allCampaigns.map(c => (
-                  <option key={c.nome_campanha} value={c.nome_campanha}>
-                    {c.nome_campanha}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
-        )}
+        </div>
 
         {isLoading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', color: 'var(--ink-100)' }}>
@@ -239,7 +253,16 @@ export const CampaignLogsTab: React.FC<CampaignLogsTabProps> = ({ visible = true
                     <h3 style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 600, color: 'var(--ink-500)' }}>
                       {campaign.nome_campanha}
                     </h3>
-                    <p style={{ margin: 0, fontSize: '12px', color: 'var(--ink-200)' }}>
+                    <p style={{ margin: 0, fontSize: '12px', color: 'var(--ink-200)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span
+                        style={{
+                          fontSize: '10px', fontWeight: 600, padding: '1px 7px', borderRadius: '999px',
+                          color: campaign.status === 'ativa' ? '#065f46' : 'var(--ink-200)',
+                          backgroundColor: campaign.status === 'ativa' ? '#d1fae5' : 'var(--paper-200)',
+                        }}
+                      >
+                        {campaign.status === 'ativa' ? 'Ativa' : 'Concluída'}
+                      </span>
                       {campaign.tipo_campanha} • {formatDate(campaign.data_inicio)}
                     </p>
                   </div>

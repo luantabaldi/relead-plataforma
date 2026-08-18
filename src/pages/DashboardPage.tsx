@@ -1423,11 +1423,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
             </div>
 
             {/* Painel de Filtros Inline */}
-            <div className="card" style={{ padding: 18, borderRadius: 16, marginBottom: 20 }}>
+            <div className="card" style={{ padding: 18, borderRadius: 16, marginBottom: 20, border: '1px solid var(--navy-100)' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <Icon name="filter" size={16} style={{ color: 'var(--navy-600)' }} />
-                  <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--navy-700)' }}>Filtrar Desempenho:</span>
+                  <Icon name="calendar" size={16} style={{ color: 'var(--navy-600)' }} />
+                  <div>
+                    <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--navy-700)' }}>Período exibido:</span>{' '}
+                    <span className="t-mono" style={{ fontSize: 12, color: 'var(--ink-100)' }}>
+                      {filters.dataInicio.toLocaleDateString('pt-BR')} – {filters.dataFim.toLocaleDateString('pt-BR')}
+                    </span>
+                    <div className="t-caption" style={{ fontSize: 11, color: 'var(--ink-200)', marginTop: 2 }}>
+                      Afeta todos os números e gráficos desta tela
+                    </div>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
                   {/* Filtro por Campanha */}
@@ -1579,7 +1587,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
               <>
                 {/* Resumo de Métricas */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-                  <StatCard label="Leads disparados" value={metrics.total} icon="megaphone" tone="white" />
+                  <StatCard label="Leads disparados" value={metrics.total} icon="megaphone"
+                    note={`no período selecionado`} tone="white" />
                   <StatCard label="Responderam" value={metrics.respondidos} icon="message-circle"
                     note={`${metrics.taxaResp}% de resposta`} tone="soft" />
                   <StatCard label="Interessados" value={metrics.interessados} icon="thumbs-up"

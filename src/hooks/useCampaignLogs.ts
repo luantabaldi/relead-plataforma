@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
+export type CampaignStatus = 'ativa' | 'concluida';
+
 export interface CampaignLog {
   nome_campanha: string;
   tipo_campanha: string;
@@ -10,6 +12,8 @@ export interface CampaignLog {
   respondidos: number;
   interessados: number;
   erros: number;
+  pendentes: number;
+  status: CampaignStatus;
   data_inicio: Date;
   data_fim: Date;
   taxa_resposta: number;
@@ -20,8 +24,11 @@ export interface CampaignLog {
 export const useCampaignLogs = () => {
   const [campaigns, setCampaigns] = useState<CampaignLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // Filtra pela data de criação da campanha (data_inicio, primeiro envio)
   const [dateRange, setDateRange] = useState<{ start: Date | null; end: Date | null }>({ start: null, end: null });
   const [selectedCampaignName, setSelectedCampaignName] = useState<string | null>(null);
+  const [selectedTipo, setSelectedTipo] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<CampaignStatus | null>(null);
 
   const fetchCampaignLogs = useCallback(async () => {
     try {
@@ -52,6 +59,8 @@ export const useCampaignLogs = () => {
             respondidos: 0,
             interessados: 0,
             erros: 0,
+            pendentes: 0,
+            status: 'concluida',
             data_inicio: new Date(lead.data_envio),
             data_fim: new Date(lead.data_envio),
             taxa_resposta: 0,
@@ -80,14 +89,17 @@ export const useCampaignLogs = () => {
           entry.enviados += 1;
         } else if (status === 'erro' || status === 'erro no disparo') {
           entry.erros += 1;
+        } else if (status === 'pendente') {
+          entry.pendentes += 1;
         } else if (status === 'enviado') {
           entry.enviados += 1;
         }
       });
 
-      // Calcular taxas e converter para array
+      // Calcular taxas, status (ativa = ainda tem lead pendente) e converter para array
       const logs = Array.from(byCampaign.values()).map(log => ({
         ...log,
+        status: (log.pendentes > 0 ? 'ativa' : 'concluida') as CampaignStatus,
         taxa_resposta: log.total > 0 ? Math.round((log.respondidos / log.total) * 100) : 0,
         taxa_interesse: log.total > 0 ? Math.round((log.interessados / log.total) * 100) : 0,
         taxa_erro: log.total > 0 ? Math.round((log.erros / log.total) * 100) : 0,
@@ -131,19 +143,22 @@ export const useCampaignLogs = () => {
   const filteredCampaigns = campaigns.filter(campaign => {
     const startDate = dateRange.start ? new Date(dateRange.start).setHours(0, 0, 0, 0) : null;
     const endDate = dateRange.end ? new Date(dateRange.end).setHours(23, 59, 59, 999) : null;
-    const campaignDate = campaign.data_fim.getTime();
+    const campaignDate = campaign.data_inicio.getTime();
 
     const dateMatch = (!startDate || campaignDate >= startDate) && (!endDate || campaignDate <= endDate);
     const nameMatch = !selectedCampaignName || campaign.nome_campanha === selectedCampaignName;
+    const tipoMatch = !selectedTipo || campaign.tipo_campanha === selectedTipo;
+    const statusMatch = !selectedStatus || campaign.status === selectedStatus;
 
-    return dateMatch && nameMatch;
+    return dateMatch && nameMatch && tipoMatch && statusMatch;
   });
 
   const exportToCSV = () => {
-    const headers = ['Campanha', 'Tipo', 'Empreendimento', 'Total', 'Enviados', 'Respondidos', 'Tx Resp.', 'Interessados', 'Tx Int.', 'Erros', 'Tx Erro', 'Início', 'Conclusão', 'Duração (min)'];
+    const headers = ['Campanha', 'Tipo', 'Status', 'Empreendimento', 'Total', 'Enviados', 'Respondidos', 'Tx Resp.', 'Interessados', 'Tx Int.', 'Erros', 'Tx Erro', 'Início', 'Conclusão', 'Duração (min)'];
     const rows = filteredCampaigns.map(c => [
       c.nome_campanha,
       c.tipo_campanha,
+      c.status === 'ativa' ? 'Ativa' : 'Concluída',
       c.empreendimento || '-',
       c.total,
       c.enviados,
@@ -180,6 +195,10 @@ export const useCampaignLogs = () => {
     setDateRange,
     selectedCampaignName,
     setSelectedCampaignName,
+    selectedTipo,
+    setSelectedTipo,
+    selectedStatus,
+    setSelectedStatus,
     exportToCSV,
   };
 };
