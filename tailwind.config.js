@@ -30,12 +30,12 @@ module.exports = {
         rust: { 50: '#FEF2F2', 500: '#DC2626' },
       },
       fontFamily: {
-        // Single family, everywhere — no serif. Matches the ElevenLabs
-        // one-typeface approach (display just uses a heavier optical size).
-        display: ['"Google Sans Flex Display"', '"Google Sans Flex"', 'Inter', 'system-ui', 'sans-serif'],
-        mono: ['"Google Sans Flex"', 'Inter', '-apple-system', 'system-ui', 'sans-serif'],
-        body: ['"Google Sans Flex"', 'Inter', '-apple-system', 'system-ui', 'sans-serif'],
-        data: ['"Google Sans Flex Display"', '"Google Sans Flex"', 'system-ui', 'sans-serif'],
+        // Single family, everywhere — no serif. Inter carries the whole
+        // interface; Google Sans Flex (self-hosted) is the fallback.
+        display: ['Inter', '"Google Sans Flex Display"', '"Google Sans Flex"', 'system-ui', 'sans-serif'],
+        mono: ['Inter', '"Google Sans Flex"', '-apple-system', 'system-ui', 'sans-serif'],
+        body: ['Inter', '"Google Sans Flex"', '-apple-system', 'system-ui', 'sans-serif'],
+        data: ['Inter', '"Google Sans Flex Display"', '"Google Sans Flex"', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         md: '14px', lg: '18px', xl: '22px', '2xl': '28px', pill: '999px',
