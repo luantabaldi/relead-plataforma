@@ -1,8 +1,8 @@
 import React from 'react';
 import { Icon, IconName } from './Icon';
-import { ManageSubTab } from '../hooks/useHash';
+import { SubTab } from '../hooks/useHash';
 
-export type TabType = 'gerenciar' | 'disparar' | 'acompanhar' | 'analisar' | 'logs' | 'leads' | 'kpis' | 'blacklist';
+export type TabType = 'dashboards' | 'campanhas' | 'contatos' | 'gerenciar';
 
 interface NavEntry {
   id: TabType;
@@ -12,26 +12,22 @@ interface NavEntry {
 }
 
 const ITEMS: NavEntry[] = [
-  { id: 'analisar', label: 'Analisar', icon: 'bar-chart', section: 'operacao' },
-  { id: 'kpis', label: 'KPIs', icon: 'wallet', section: 'operacao' },
-  { id: 'logs', label: 'Histórico', icon: 'clock', section: 'operacao' },
-  { id: 'leads', label: 'Leads', icon: 'user', section: 'operacao' },
-  { id: 'blacklist', label: 'Bloqueados', icon: 'x-circle', section: 'operacao' },
-  { id: 'acompanhar', label: 'Acompanhar', icon: 'inbox', section: 'operacao' },
-  { id: 'disparar', label: 'Disparar', icon: 'send', section: 'operacao' },
+  { id: 'dashboards', label: 'Dashboards', icon: 'bar-chart', section: 'operacao' },
+  { id: 'campanhas', label: 'Campanhas', icon: 'megaphone', section: 'operacao' },
+  { id: 'contatos', label: 'Contatos', icon: 'user', section: 'operacao' },
   { id: 'gerenciar', label: 'Gerenciar', icon: 'settings', section: 'config' },
 ];
 
 interface TopNavProps {
   active: TabType;
-  manageSubTab?: ManageSubTab;
-  onChange: (tab: TabType, sub?: ManageSubTab) => void;
+  subTab?: SubTab;
+  onChange: (tab: TabType, sub?: SubTab) => void;
 }
 
-// The Gerenciar page owns its own sub-tab selector (Templates /
-// Empreendimentos / Agendadas), so the top nav keeps a single flat level —
-// no dropdown to duplicate that navigation.
-export const TopNav: React.FC<TopNavProps> = ({ active, manageSubTab, onChange }) => {
+// Dashboards, Campanhas e Contatos possuem seu próprio seletor de sub-abas
+// dentro da página (mesmo padrão que Gerenciar já usava), então o top nav
+// mantém um único nível flat — sem dropdown pra duplicar essa navegação.
+export const TopNav: React.FC<TopNavProps> = ({ active, subTab, onChange }) => {
   const operacao = ITEMS.filter((i) => i.section === 'operacao');
   const config   = ITEMS.filter((i) => i.section === 'config');
 
@@ -42,7 +38,7 @@ export const TopNav: React.FC<TopNavProps> = ({ active, manageSubTab, onChange }
         key={it.id}
         type="button"
         className={'nav-item' + (isActive ? ' active' : '')}
-        onClick={() => onChange(it.id, it.id === 'gerenciar' ? (manageSubTab ?? 'templates') : undefined)}
+        onClick={() => onChange(it.id, isActive ? subTab : undefined)}
         aria-current={isActive ? 'page' : undefined}
       >
         <Icon name={it.icon} size={17} />

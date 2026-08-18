@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Dashboard } from '../components/Dashboard';
 import { DispatchForm } from '../components/DispatchForm';
-import { TopNav, TabType } from '../components/TopNav';
+import { TopNav } from '../components/TopNav';
 import { Topbar } from '../components/Topbar';
 import { Icon } from '../components/Icon';
 import { Toast } from '../components/Toast';
@@ -10,7 +10,7 @@ import { CampaignLogsTab } from '../components/CampaignLogsTab';
 import { LeadsTab } from '../components/LeadsTab';
 import { BlacklistTab } from '../components/BlacklistTab';
 import { useConversations } from '../hooks/useConversations';
-import { useHash } from '../hooks/useHash';
+import { useHash, ManageSubTab, DashboardsSubTab, CampanhasSubTab, ContatosSubTab } from '../hooks/useHash';
 import { useToast } from '../hooks/useToast';
 import { useConfirm } from '../hooks/useConfirm';
 import { useActiveDispatches } from '../hooks/useActiveDispatches';
@@ -27,9 +27,13 @@ interface DashboardPageProps {
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
   // ── Hash-based routing (no external router needed) ──────────────────
-  const { tab: currentTab, manageSubTab: activeManageTab, navigate } = useHash();
-
-  const setCurrentTab = (t: TabType) => navigate(t);
+  const { tab: currentTab, subTab, navigate } = useHash();
+  // Cada cast só é lido dentro do bloco do próprio currentTab — parseHash
+  // garante que subTab só assume valores válidos daquele grupo.
+  const activeManageTab = subTab as ManageSubTab;
+  const activeDashboardsTab = subTab as DashboardsSubTab;
+  const activeCampanhasTab = subTab as CampanhasSubTab;
+  const activeContatosTab = subTab as ContatosSubTab;
 
   const [filters, setFilters] = useState<FilterOptions>({
     campanhas: [],
@@ -212,11 +216,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
       loadTemplates();
       loadEmpreendimentos();
       loadScheduledCampaigns();
-    } else if (currentTab === 'analisar') {
+    } else if (currentTab === 'dashboards' && activeDashboardsTab === 'performance') {
       refetch();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTab]);
+  }, [currentTab, activeDashboardsTab]);
 
   const handleSaveTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -442,32 +446,89 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
   return (
     <div className="dash-app">
       <div className="app-header">
-        <TopNav active={currentTab} manageSubTab={activeManageTab} onChange={(t, sub) => navigate(t, sub)} />
+        <TopNav active={currentTab} subTab={subTab} onChange={(t, sub) => navigate(t, sub)} />
         <Topbar syncing={isLoading} session={session} />
       </div>
 
       <div className="dash-main">
-        {/* ── Acompanhar — full-height master/detail ── */}
-        {currentTab === 'acompanhar' && (
-          <Dashboard
-            conversations={conversations}
-            isLoading={isLoading}
-            onAction={handleAction}
-            pendingAction={pendingAction}
-            selectedDispatchId={selectedDispatchId}
-            onSelectConversation={setSelectedDispatchId}
-          />
-        )}
-
-        {/* ── Disparar ── */}
-        {currentTab === 'disparar' && (
-          <div className="page thin-scroll">
-            <div className="page-hero">
-              <div>
-                <h2>Disparar <em>campanha</em></h2>
+        {/* ── Campanhas — Acompanhar / Histórico / Nova Campanha ── */}
+        {currentTab === 'campanhas' && (
+          <div className="page" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+            <div style={{ flexShrink: 0, padding: '20px 32px 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+                <div style={{ display: 'flex', borderBottom: '1px solid var(--paper-200)', gap: 20 }}>
+                  <button
+                    type="button"
+                    onClick={() => navigate('campanhas', 'acompanhar')}
+                    style={{
+                      background: 'none', border: 'none',
+                      borderBottom: activeCampanhasTab === 'acompanhar' ? '2px solid var(--navy-500)' : '2px solid transparent',
+                      padding: '8px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 14,
+                      color: activeCampanhasTab === 'acompanhar' ? 'var(--navy-700)' : 'var(--ink-300)',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    Acompanhar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('campanhas', 'historico')}
+                    style={{
+                      background: 'none', border: 'none',
+                      borderBottom: activeCampanhasTab === 'historico' ? '2px solid var(--navy-500)' : '2px solid transparent',
+                      padding: '8px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 14,
+                      color: activeCampanhasTab === 'historico' ? 'var(--navy-700)' : 'var(--ink-300)',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    Histórico
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={() => navigate('campanhas', 'nova')}
+                  style={{ marginBottom: 12 }}
+                >
+                  <Icon name="send" size={14} /> Nova Campanha
+                </button>
               </div>
             </div>
-            <DispatchForm onSuccess={() => { refetch(); navigate('acompanhar'); }} />
+
+            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              {activeCampanhasTab === 'acompanhar' && (
+                <Dashboard
+                  conversations={conversations}
+                  isLoading={isLoading}
+                  onAction={handleAction}
+                  pendingAction={pendingAction}
+                  selectedDispatchId={selectedDispatchId}
+                  onSelectConversation={setSelectedDispatchId}
+                />
+              )}
+
+              {activeCampanhasTab === 'historico' && (
+                <div className="page thin-scroll" style={{ height: '100%' }}>
+                  <div className="page-hero">
+                    <div>
+                      <h2>Histórico <em>de campanhas</em></h2>
+                    </div>
+                  </div>
+                  <CampaignLogsTab visible={true} />
+                </div>
+              )}
+
+              {activeCampanhasTab === 'nova' && (
+                <div className="page thin-scroll" style={{ height: '100%' }}>
+                  <div className="page-hero">
+                    <div>
+                      <h2>Disparar <em>campanha</em></h2>
+                    </div>
+                  </div>
+                  <DispatchForm onSuccess={() => { refetch(); navigate('campanhas', 'acompanhar'); }} />
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1300,8 +1361,42 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
           </div>
         )}
 
-        {/* ── Analisar ── */}
-        {currentTab === 'analisar' && (
+        {/* ── Dashboards — Performance / Custos & Saúde ── */}
+        {currentTab === 'dashboards' && (
+          <div style={{ padding: '20px 32px 0' }}>
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--paper-200)', gap: 20 }}>
+              <button
+                type="button"
+                onClick={() => navigate('dashboards', 'performance')}
+                style={{
+                  background: 'none', border: 'none',
+                  borderBottom: activeDashboardsTab === 'performance' ? '2px solid var(--navy-500)' : '2px solid transparent',
+                  padding: '8px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 14,
+                  color: activeDashboardsTab === 'performance' ? 'var(--navy-700)' : 'var(--ink-300)',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Performance
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('dashboards', 'custos')}
+                style={{
+                  background: 'none', border: 'none',
+                  borderBottom: activeDashboardsTab === 'custos' ? '2px solid var(--navy-500)' : '2px solid transparent',
+                  padding: '8px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 14,
+                  color: activeDashboardsTab === 'custos' ? 'var(--navy-700)' : 'var(--ink-300)',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Custos & Saúde
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Analisar (Dashboards → Performance) ── */}
+        {activeDashboardsTab === 'performance' && currentTab === 'dashboards' && (
           <div className="page thin-scroll">
             <div className="page-hero">
               <div>
@@ -1497,7 +1592,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                   <div className="card" style={{ padding: '16px 24px', borderRadius: 16, alignItems: 'center', marginBottom: 24, display: 'flex', flexDirection: 'row', gap: 14, background: 'var(--navy-50)', border: '1px solid var(--navy-100)' }}>
                     <Icon name="bar-chart-2" size={18} style={{ color: 'var(--navy-500)', flexShrink: 0 }} />
                     <span className="t-caption" style={{ flex: 1 }}>Sem disparos no período selecionado</span>
-                    <button onClick={() => setCurrentTab('disparar')} className="btn primary" style={{ flexShrink: 0, padding: '8px 14px' }}>
+                    <button onClick={() => navigate('campanhas', 'nova')} className="btn primary" style={{ flexShrink: 0, padding: '8px 14px' }}>
                       <Icon name="send" size={13} /> Disparar
                     </button>
                   </div>
@@ -1515,7 +1610,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
         )}
 
         {/* ── KPIs (saúde, templates, custo) ── */}
-        {currentTab === 'kpis' && (
+        {/* ── KPIs (Dashboards → Custos & Saúde) ── */}
+        {activeDashboardsTab === 'custos' && currentTab === 'dashboards' && (
           <div className="page thin-scroll">
             <div className="page-hero">
               <div>
@@ -1832,36 +1928,62 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
           </div>
         )}
 
-        {/* ── Histórico de Campanhas ── */}
-        {currentTab === 'logs' && (
-          <div className="page" style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: '100%' }}>
-            <div className="page-hero">
-              <div>
-                <h2>Histórico <em>de campanhas</em></h2>
-              </div>
-            </div>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <CampaignLogsTab visible={true} />
-            </div>
-          </div>
-        )}
-
-        {/* ── Base de Leads ── */}
-        {currentTab === 'leads' && (
+        {/* ── Contatos — Base de Leads / Bloqueados ── */}
+        {currentTab === 'contatos' && (
           <div className="page" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-            <LeadsTab />
-          </div>
-        )}
-
-        {currentTab === 'blacklist' && (
-          <div className="page thin-scroll">
-            <div className="page-hero">
-              <div>
-                <h2>Bloqueados <em>e do not call</em></h2>
-                <p className="t-caption" style={{ marginTop: 4 }}>Gerencie leads que solicitaram para não receber mensagens</p>
+            <div style={{ flexShrink: 0, padding: '16px 32px 0' }}>
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--paper-200)', gap: 20 }}>
+                <button
+                  type="button"
+                  onClick={() => navigate('contatos', 'leads')}
+                  style={{
+                    background: 'none', border: 'none',
+                    borderBottom: activeContatosTab === 'leads' ? '2px solid var(--navy-500)' : '2px solid transparent',
+                    padding: '8px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 14,
+                    color: activeContatosTab === 'leads' ? 'var(--navy-700)' : 'var(--ink-300)',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  Base de Leads
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('contatos', 'bloqueados')}
+                  style={{
+                    background: 'none', border: 'none',
+                    borderBottom: activeContatosTab === 'bloqueados' ? '2px solid var(--navy-500)' : '2px solid transparent',
+                    padding: '8px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 14,
+                    color: activeContatosTab === 'bloqueados' ? 'var(--navy-700)' : 'var(--ink-300)',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  Bloqueados
+                </button>
               </div>
             </div>
-            <BlacklistTab />
+
+            <div
+              className={activeContatosTab === 'bloqueados' ? 'thin-scroll' : undefined}
+              style={{ flex: 1, minHeight: 0, overflow: activeContatosTab === 'bloqueados' ? 'auto' : 'hidden' }}
+            >
+              {activeContatosTab === 'leads' && (
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+                  <LeadsTab />
+                </div>
+              )}
+
+              {activeContatosTab === 'bloqueados' && (
+                <div style={{ padding: '20px 32px' }}>
+                  <div className="page-hero">
+                    <div>
+                      <h2>Bloqueados <em>e do not call</em></h2>
+                      <p className="t-caption" style={{ marginTop: 4 }}>Gerencie leads que solicitaram para não receber mensagens</p>
+                    </div>
+                  </div>
+                  <BlacklistTab />
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
