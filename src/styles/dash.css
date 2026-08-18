@@ -355,7 +355,8 @@ select.input { appearance: none; -webkit-appearance: none; cursor: pointer; back
 
 /* ---------- Chat bubbles ---------- */
 .bubble { max-width: 78%; padding: 11px 15px; border-radius: var(--radius-lg); font: 400 13px/1.5 var(--font-body); letter-spacing: -0.01em; word-break: break-word; }
-.bubble.out { background: var(--navy-600); color: var(--paper-0); border-bottom-right-radius: 6px; }
+/* Slate, not absolute black — softer on the eyes across a full thread. */
+.bubble.out { background: #334155; color: var(--paper-0); border-bottom-right-radius: 6px; }
 .bubble.in { background: var(--paper-100); color: var(--ink-200); border: 1px solid var(--paper-200); border-bottom-left-radius: 6px; }
 .bubble .meta { font: 400 10px/1 var(--font-mono); letter-spacing: 0.02em; margin-top: 6px; opacity: 0.7; }
 
