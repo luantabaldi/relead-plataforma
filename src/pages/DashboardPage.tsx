@@ -18,6 +18,7 @@ import { usePausedDispatches } from '../hooks/usePausedDispatches';
 import { useMetaKpis, NumeroSaude, CustoPorDia, TemplateKpi } from '../hooks/useMetaKpis';
 import { useGeminiKpis, CustoGeminiPorCampanha } from '../hooks/useGeminiKpis';
 import { useCustoPeriodo } from '../hooks/useCustoPeriodo';
+import { useCampaignNames } from '../hooks/useCampaignNames';
 import { friendlyError } from '../lib/friendlyError';
 import { FilterOptions, CampaignType } from '../types';
 import { supabase } from '../lib/supabase';
@@ -42,7 +43,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
     dataInicio: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
     dataFim: new Date(),
     busca: '',
+    nomeCampanha: null,
   });
+
+  // Lista de campanhas específicas pro filtro de Performance — não filtrada
+  // por período, senão as opções encolheriam/cresceriam ao trocar a data.
+  const { names: campaignNames, isLoading: isLoadingCampaignNames } = useCampaignNames();
 
   const [periodOption, setPeriodOption] = useState<'7d' | '30d' | '90d' | 'custom'>('30d');
 
@@ -1490,9 +1496,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-                  {/* Filtro por Campanha */}
+                  {/* Filtro por Tipo de campanha */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)' }}>Campanha:</span>
+                    <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)' }}>Tipo:</span>
                     <select
                       className="input"
                       style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8, height: 'auto', width: 'auto', minWidth: 120 }}
@@ -1502,9 +1508,27 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                         setFilters({ ...filters, campanhas: val ? [val as CampaignType] : [] });
                       }}
                     >
-                      <option value="">Todas</option>
+                      <option value="">Todos</option>
                       <option value="prospeccao">Prospecção</option>
                       <option value="reativacao">Reativação</option>
+                    </select>
+                  </div>
+
+                  {/* Filtro por Campanha específica */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)' }}>Campanha:</span>
+                    <select
+                      className="input"
+                      style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8, height: 'auto', width: 'auto', minWidth: 140 }}
+                      value={filters.nomeCampanha || ''}
+                      onChange={(e) => setFilters({ ...filters, nomeCampanha: e.target.value || null })}
+                    >
+                      <option value="">
+                        {isLoadingCampaignNames ? 'Carregando…' : 'Todas'}
+                      </option>
+                      {campaignNames.map((nome) => (
+                        <option key={nome} value={nome}>{nome}</option>
+                      ))}
                     </select>
                   </div>
 
@@ -1666,11 +1690,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6" style={{ marginTop: 24 }}>
-                  <LineChart conversations={conversations} dataInicio={filters.dataInicio} dataFim={filters.dataFim} />
-                  <CampaignBarChart conversations={conversations} />
+                {/* Bento: linha do tempo ocupa a largura toda (precisa de espaço
+                    horizontal pra respirar), as 3 leituras de composição/comparação
+                    dividem a linha de baixo em colunas iguais. */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6" style={{ marginTop: 24 }}>
+                  <div className="md:col-span-3">
+                    <LineChart conversations={conversations} dataInicio={filters.dataInicio} dataFim={filters.dataFim} />
+                  </div>
                   <FunnelChart conversations={conversations} />
-                  <DonutChart conversations={conversations} />
+                  <StatusBarChart conversations={conversations} />
+                  <CampaignBarChart conversations={conversations} />
                 </div>
               </>
             )}
@@ -2141,24 +2170,60 @@ interface ChartProps {
   dataFim: Date;
 }
 
-/** Catmull-Rom → cubic Bezier smoothing so line charts read as soft curves
- * instead of pointed line segments. Standard 1/6-tension conversion. */
-function smoothLinePath(pts: { x: number; y: number }[]): string {
-  if (pts.length === 0) return '';
-  if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
-  let d = `M ${pts[0].x} ${pts[0].y}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i === 0 ? i : i - 1];
-    const p1 = pts[i];
-    const p2 = pts[i + 1];
-    const p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
-    const cp1x = p1.x + (p2.x - p0.x) / 6;
-    const cp1y = p1.y + (p2.y - p0.y) / 6;
-    const cp2x = p2.x - (p3.x - p1.x) / 6;
-    const cp2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+/** Monotone cubic interpolation (Fritsch-Carlson, same family as d3's
+ * curveMonotoneX) — unlike a plain Catmull-Rom spline, this is mathematically
+ * guaranteed to never overshoot past a segment's two endpoint values. That's
+ * what stops the line from dipping below a low/zero point between two
+ * higher ones, which a naive smoothing pass does. */
+function monotonePath(pts: { x: number; y: number }[]): string {
+  const n = pts.length;
+  if (n === 0) return '';
+  if (n === 1) return `M ${pts[0].x} ${pts[0].y}`;
+
+  const d: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    const dx = pts[i + 1].x - pts[i].x;
+    d.push(dx === 0 ? 0 : (pts[i + 1].y - pts[i].y) / dx);
   }
-  return d;
+
+  const m: number[] = new Array(n);
+  m[0] = d[0];
+  m[n - 1] = d[n - 2];
+  for (let i = 1; i < n - 1; i++) {
+    if (d[i - 1] === 0 || d[i] === 0 || (d[i - 1] > 0) !== (d[i] > 0)) {
+      m[i] = 0;
+    } else {
+      m[i] = (d[i - 1] + d[i]) / 2;
+    }
+  }
+  // Rescale tangents where needed so each segment stays within its two
+  // endpoints' range — the actual monotonicity guarantee.
+  for (let i = 0; i < n - 1; i++) {
+    if (d[i] === 0) {
+      m[i] = 0;
+      m[i + 1] = 0;
+      continue;
+    }
+    const a = m[i] / d[i];
+    const b = m[i + 1] / d[i];
+    const s = a * a + b * b;
+    if (s > 9) {
+      const t = 3 / Math.sqrt(s);
+      m[i] = t * a * d[i];
+      m[i + 1] = t * b * d[i];
+    }
+  }
+
+  let path = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < n - 1; i++) {
+    const dx = (pts[i + 1].x - pts[i].x) / 3;
+    const cp1x = pts[i].x + dx;
+    const cp1y = pts[i].y + m[i] * dx;
+    const cp2x = pts[i + 1].x - dx;
+    const cp2y = pts[i + 1].y - m[i + 1] * dx;
+    path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${pts[i + 1].x} ${pts[i + 1].y}`;
+  }
+  return path;
 }
 
 const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim }) => {
@@ -2206,7 +2271,7 @@ const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim })
     return { x, y, val, date };
   });
 
-  const linePath = smoothLinePath(points);
+  const linePath = monotonePath(points);
   const areaPath = points.length > 0
     ? `${linePath} L ${points[points.length - 1].x} ${height - paddingBottom} L ${points[0].x} ${height - paddingBottom} Z`
     : '';
@@ -2288,30 +2353,33 @@ const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim })
             );
           })}
 
+          {/* Invisible hit targets only — no marker dot renders until hover,
+              per dot={false}-equivalent: the line + area should carry the
+              shape on their own. */}
           {points.map((p, idx) => (
-            <g key={idx}>
-              <circle
-                cx={p.x}
-                cy={p.y}
-                r={hoveredPoint?.date === p.date ? 5 : 3.5}
-                fill={hoveredPoint?.date === p.date ? "#2A3559" : "var(--chart-line)"}
-                stroke="#fff"
-                strokeWidth="1.5"
-                style={{ transition: 'all 0.1s ease', cursor: 'pointer' }}
-                onMouseEnter={() => setHoveredPoint(p)}
-                onMouseLeave={() => setHoveredPoint(null)}
-              />
-              <circle
-                cx={p.x}
-                cy={p.y}
-                r="12"
-                fill="transparent"
-                style={{ cursor: 'pointer' }}
-                onMouseEnter={() => setHoveredPoint(p)}
-                onMouseLeave={() => setHoveredPoint(null)}
-              />
-            </g>
+            <circle
+              key={idx}
+              cx={p.x}
+              cy={p.y}
+              r="12"
+              fill="transparent"
+              style={{ cursor: 'pointer' }}
+              onMouseEnter={() => setHoveredPoint(p)}
+              onMouseLeave={() => setHoveredPoint(null)}
+            />
           ))}
+
+          {hoveredPoint && (
+            <circle
+              cx={hoveredPoint.x}
+              cy={hoveredPoint.y}
+              r="5"
+              fill="#2A3559"
+              stroke="#fff"
+              strokeWidth="1.5"
+              style={{ pointerEvents: 'none' }}
+            />
+          )}
         </svg>
 
         {hoveredPoint && (
@@ -2360,9 +2428,10 @@ const CampaignBarChart: React.FC<{ conversations: any[] }> = ({ conversations })
 
   return (
     <div className="card" style={{ padding: 20, flex: 1, minWidth: 280, minHeight: 280, display: 'flex', flexDirection: 'column' }}>
-      <h4 className="t-serif" style={{ fontSize: 16, margin: '0 0 20px 0', color: 'var(--navy-700)' }}>
+      <h4 className="t-serif" style={{ fontSize: 16, margin: '0 0 4px 0', color: 'var(--navy-700)' }}>
         Taxa de resposta por campanha
       </h4>
+      <p className="t-caption" style={{ margin: '0 0 20px 0' }}>Trilho cinza = 100% dos leads disparados</p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24, flex: 1, justifyContent: 'center' }}>
         <div>
@@ -2377,7 +2446,7 @@ const CampaignBarChart: React.FC<{ conversations: any[] }> = ({ conversations })
               style={{
                 height: '100%',
                 width: '100%',
-                background: 'var(--navy-500)',
+                background: 'var(--chart-line)',
                 borderRadius: 7,
                 transform: `scaleX(${pMet.rate / 100})`,
                 transformOrigin: 'left',
@@ -2399,7 +2468,7 @@ const CampaignBarChart: React.FC<{ conversations: any[] }> = ({ conversations })
               style={{
                 height: '100%',
                 width: '100%',
-                background: 'var(--green-500)',
+                background: 'var(--chart-status-interessado)',
                 borderRadius: 7,
                 transform: `scaleX(${rMet.rate / 100})`,
                 transformOrigin: 'left',
@@ -2413,30 +2482,6 @@ const CampaignBarChart: React.FC<{ conversations: any[] }> = ({ conversations })
   );
 };
 
-/** Rounds the corners of an arbitrary polygon by backing off `radius` px
- * along each edge and joining with a quadratic curve through the original
- * vertex — works for the funnel's slanted trapezoid edges too, not just
- * axis-aligned rectangles. */
-function roundedPolygonPath(points: { x: number; y: number }[], radius: number): string {
-  const n = points.length;
-  let d = '';
-  for (let i = 0; i < n; i++) {
-    const prev = points[(i - 1 + n) % n];
-    const curr = points[i];
-    const next = points[(i + 1) % n];
-    const toPrev = { x: prev.x - curr.x, y: prev.y - curr.y };
-    const toNext = { x: next.x - curr.x, y: next.y - curr.y };
-    const lenPrev = Math.hypot(toPrev.x, toPrev.y) || 1;
-    const lenNext = Math.hypot(toNext.x, toNext.y) || 1;
-    const rP = Math.min(radius, lenPrev / 2);
-    const rN = Math.min(radius, lenNext / 2);
-    const start = { x: curr.x + (toPrev.x / lenPrev) * rP, y: curr.y + (toPrev.y / lenPrev) * rP };
-    const end = { x: curr.x + (toNext.x / lenNext) * rN, y: curr.y + (toNext.y / lenNext) * rN };
-    d += (i === 0 ? `M ${start.x} ${start.y} ` : `L ${start.x} ${start.y} `) + `Q ${curr.x} ${curr.y} ${end.x} ${end.y} `;
-  }
-  return d + 'Z';
-}
-
 const FunnelChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
   const disparados = conversations.length;
   const responderam = conversations.filter((c) =>
@@ -2448,24 +2493,16 @@ const FunnelChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
   const intPercent = disparados ? Math.round((interessados / disparados) * 100) : 0;
   const relIntPercent = responderam ? Math.round((interessados / responderam) * 100) : 0;
 
-  // Larguras visuais (com piso mínimo pra continuar legível) — sempre não-crescentes,
-  // pra manter o formato de funil, mas os números exibidos usam o percentual real.
-  const FLOOR = 16;
-  const widthResp = disparados ? Math.max(FLOOR, Math.min(100, respPercent)) : 100;
-  const widthInt = disparados ? Math.max(FLOOR - 4, Math.min(widthResp, intPercent)) : widthResp;
-
-  // Continuous cool-gray → pastel-mint gradient across the three stages —
-  // no absolute black, no vivid semaphore green.
+  // Step funnel: each block's width is directly proportional to its own
+  // count over the first stage — not chained to the block above it — so
+  // the shape never distorts how much volume actually remains at each
+  // step. A small floor just keeps a zero-count stage visible as a sliver.
+  const FLOOR = 3;
   const bands = [
-    { label: 'Disparados', count: disparados, percentLabel: '100%', top: 100, bottom: 100, color: 'var(--chart-funnel-1)' },
-    { label: 'Responderam', count: responderam, percentLabel: `${respPercent}% dos disparados`, top: 100, bottom: widthResp, color: 'var(--chart-funnel-2)' },
-    { label: 'Interessados', count: interessados, percentLabel: `${relIntPercent}% dos que responderam`, top: widthResp, bottom: widthInt, color: 'var(--chart-funnel-3)' },
+    { label: 'Disparados', count: disparados, percentLabel: '100%', width: 100, color: 'var(--chart-funnel-1)' },
+    { label: 'Responderam', count: responderam, percentLabel: `${respPercent}% dos disparados`, width: Math.max(FLOOR, respPercent), color: 'var(--chart-funnel-2)' },
+    { label: 'Interessados', count: interessados, percentLabel: `${relIntPercent}% dos que responderam`, width: Math.max(FLOOR, intPercent), color: 'var(--chart-funnel-3)' },
   ];
-
-  const svgWidth = 400;
-  const bandHeight = 62;
-  const gap = 12;
-  const totalHeight = bands.length * bandHeight + (bands.length - 1) * gap;
 
   return (
     <div className="card" style={{ padding: 20, flex: 1, minWidth: 280, minHeight: 280, display: 'flex', flexDirection: 'column' }}>
@@ -2478,57 +2515,36 @@ const FunnelChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
           Sem disparos no período selecionado
         </div>
       ) : (
-        <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
-          <svg viewBox={`0 0 ${svgWidth} ${totalHeight}`} width="100%" height={totalHeight} style={{ overflow: 'visible' }}>
-            {bands.map((band, idx) => {
-              const yTop = idx * (bandHeight + gap);
-              const yBottom = yTop + bandHeight;
-              const topInset = (svgWidth - svgWidth * (band.top / 100)) / 2;
-              const bottomInset = (svgWidth - svgWidth * (band.bottom / 100)) / 2;
-              const pts = [
-                { x: topInset, y: yTop },
-                { x: svgWidth - topInset, y: yTop },
-                { x: svgWidth - bottomInset, y: yBottom },
-                { x: bottomInset, y: yBottom },
-              ];
-              return (
-                <path
-                  key={idx}
-                  d={roundedPolygonPath(pts, 10)}
-                  fill={band.color}
-                  style={{ transition: 'd 0.4s ease' }}
-                />
-              );
-            })}
-          </svg>
-
-          {bands.map((band, idx) => {
-            const yTop = idx * (bandHeight + gap);
-            const yCenter = yTop + bandHeight / 2;
-            return (
-              <div
-                key={idx}
-                style={{
-                  position: 'absolute', left: 0, right: 0,
-                  top: `${(yCenter / totalHeight) * 100}%`, transform: 'translateY(-50%)',
-                  textAlign: 'center', color: '#1F2937', pointerEvents: 'none',
-                }}
-              >
-                {/* Dark text (not white) — it stays legible across the whole
-                    gray-to-pastel-mint range, including the lightest band. */}
-                <div style={{ fontWeight: 600, fontSize: 12 }}>{band.label}</div>
-                <div className="t-mono" style={{ fontSize: 13, fontWeight: 700 }}>{band.count}</div>
-                <div className="t-mono" style={{ fontSize: 9, opacity: 0.75 }}>{band.percentLabel}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, justifyContent: 'center' }}>
+          {bands.map((band, idx) => (
+            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {/* Label + count sit to the left of the block, not inside it —
+                  no contrast problem regardless of how light the fill is. */}
+              <div style={{ width: 84, flexShrink: 0, textAlign: 'right' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-300)' }}>{band.label}</div>
+                <div className="t-mono tnum" style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-200)' }}>{band.count}</div>
               </div>
-            );
-          })}
+              <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+                <div
+                  style={{
+                    width: `${band.width}%`, height: 34, borderRadius: 8,
+                    background: band.color, transition: 'width 0.4s ease',
+                  }}
+                />
+              </div>
+              {/* % reading sits to the right, aligned regardless of block width. */}
+              <div style={{ width: 92, flexShrink: 0 }}>
+                <span className="t-mono" style={{ fontSize: 10, color: 'var(--ink-50)' }}>{band.percentLabel}</span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
   );
 };
 
-const DonutChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
+const StatusBarChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
   const counts: Record<string, number> = {
     interessado: 0,
     respondido: 0,
@@ -2567,107 +2583,69 @@ const DonutChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
     erro: 'Erro',
   };
 
-  let cumulativePercent = 0;
-  const slices = Object.entries(counts)
-    .filter(([_, val]) => val > 0)
-    .map(([key, val]) => {
-      const percent = total ? (val / total) * 100 : 0;
-      const strokeDashoffset = -cumulativePercent;
-      cumulativePercent += percent;
-      return {
-        key,
-        val,
-        percent,
-        strokeDasharray: `${percent} ${100 - percent}`,
-        strokeDashoffset,
-        color: colors[key],
-        label: labels[key],
-      };
-    });
+  // 'Enviado' (ainda aguardando resposta) costuma dominar o volume e, na
+  // mesma escala das outras, esmaga a comparação entre elas — fica em
+  // destaque à parte, fora do gráfico de barras principal.
+  const enviadoCount = counts.enviado;
+  const enviadoPercent = total ? Math.round((enviadoCount / total) * 100) : 0;
 
-  const [hoveredSlice, setHoveredSlice] = useState<string | null>(null);
+  const rows = Object.entries(counts)
+    .filter(([key, val]) => key !== 'enviado' && val > 0)
+    .sort((a, b) => b[1] - a[1]);
+  const maxVal = Math.max(...rows.map(([, val]) => val), 1);
 
   return (
     <div className="card" style={{ padding: 20, flex: 1, minWidth: 280, minHeight: 280, display: 'flex', flexDirection: 'column' }}>
-      <h4 className="t-serif" style={{ fontSize: 16, margin: '0 0 16px 0', color: 'var(--navy-700)' }}>
+      <h4 className="t-serif" style={{ fontSize: 16, margin: '0 0 12px 0', color: 'var(--navy-700)' }}>
         Distribuição por status
       </h4>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center', flex: 1 }}>
-        <div style={{ position: 'relative', width: 130, height: 130, flexShrink: 0 }}>
-          <svg viewBox="0 0 42 42" width="100%" height="100%">
-            <circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="var(--paper-100)" strokeWidth="4.5" />
-            {slices.map((slice, idx) => (
-              <circle
-                key={idx}
-                cx="21"
-                cy="21"
-                r="15.91549430918954"
-                fill="transparent"
-                stroke={slice.color}
-                strokeWidth={hoveredSlice === slice.key ? 6 : 4.5}
-                strokeDasharray={slice.strokeDasharray}
-                strokeDashoffset={slice.strokeDashoffset}
-                style={{
-                  transform: 'rotate(-90deg)',
-                  transformOrigin: '50% 50%',
-                  transition: 'all 0.2s ease',
-                  cursor: 'pointer',
-                }}
-                onMouseEnter={() => setHoveredSlice(slice.key)}
-                onMouseLeave={() => setHoveredSlice(null)}
-              />
-            ))}
-          </svg>
-
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              textAlign: 'center',
-              pointerEvents: 'none',
-            }}
-          >
-            <div className="t-mono" style={{ fontSize: 18, fontWeight: 700, color: 'var(--navy-700)' }}>
-              {total}
-            </div>
-            <div style={{ fontSize: 8, color: 'var(--ink-50)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Leads
-            </div>
-          </div>
+      {total === 0 ? (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-100)', fontSize: 13 }}>
+          Sem disparos no período selecionado
         </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 120 }}>
-          {Object.entries(counts).map(([key, val]) => {
-            const percent = total ? Math.round((val / total) * 100) : 0;
-            if (val === 0) return null;
-            const isHovered = hoveredSlice === key;
-            return (
-              <div
-                key={key}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  opacity: hoveredSlice && !isHovered ? 0.5 : 1,
-                  transition: 'opacity 0.2s ease',
-                  cursor: 'pointer',
-                }}
-                onMouseEnter={() => setHoveredSlice(key)}
-                onMouseLeave={() => setHoveredSlice(null)}
-              >
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: colors[key] }} />
-                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink-200)', flex: 1 }}>{labels[key]}</span>
-                <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)' }}>
-                  {val} <span style={{ fontSize: 9 }}>({percent}%)</span>
+      ) : (
+        <>
+          {enviadoCount > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', marginBottom: 14, borderRadius: 10, background: 'var(--paper-50)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: colors.enviado, flexShrink: 0 }} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-200)' }}>
+                  Enviado <span style={{ fontWeight: 400, color: 'var(--ink-50)' }}>· aguardando resposta</span>
                 </span>
               </div>
-            );
-          })}
-        </div>
-      </div>
+              <span className="t-mono tnum" style={{ fontSize: 12, color: 'var(--ink-50)', flexShrink: 0 }}>
+                {enviadoCount} <span style={{ fontSize: 10 }}>({enviadoPercent}%)</span>
+              </span>
+            </div>
+          )}
+
+          {/* Barras horizontais, maior → menor — fatias de valor próximo
+              (ex. 100 vs 81 vs 84) ficam comparáveis por comprimento, o que
+              um donut não consegue transmitir. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, justifyContent: 'center' }}>
+            {rows.map(([key, val]) => {
+              const pctOfTotal = total ? Math.round((val / total) * 100) : 0;
+              const widthPct = Math.max(3, (val / maxVal) * 100);
+              return (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 90, flexShrink: 0, fontSize: 11, fontWeight: 600, color: 'var(--ink-200)' }}>
+                    {labels[key]}
+                  </div>
+                  <div style={{ flex: 1, height: 14, background: 'var(--paper-100)', borderRadius: 7, overflow: 'hidden' }}>
+                    <div style={{ width: `${widthPct}%`, height: '100%', background: colors[key], borderRadius: 7, transition: 'width 0.4s ease' }} />
+                  </div>
+                  <div style={{ width: 64, flexShrink: 0, textAlign: 'right' }}>
+                    <span className="t-mono tnum" style={{ fontSize: 11, color: 'var(--ink-50)' }}>
+                      {val} <span style={{ fontSize: 9 }}>({pctOfTotal}%)</span>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 };

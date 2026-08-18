@@ -54,4 +54,5 @@ export interface FilterOptions {
   dataInicio: Date;
   dataFim: Date;
   busca?: string;
+  nomeCampanha?: string | null;
 }

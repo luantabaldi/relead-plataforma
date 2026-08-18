@@ -43,9 +43,14 @@ export const useDispatchesList = (filters: FilterOptions): UseDispatchesListStat
           .select('*')
           .order('data_envio', { ascending: false });
 
-        // Filtro: Campanhas
+        // Filtro: Campanhas (tipo)
         if (filters.campanhas.length > 0) {
           q = q.in('tipo_campanha', filters.campanhas);
+        }
+
+        // Filtro: Campanha específica (nome)
+        if (filters.nomeCampanha) {
+          q = q.eq('nome_campanha', filters.nomeCampanha);
         }
 
         // Filtro: Status (mapear status_reativacao para nossos status)
