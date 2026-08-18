@@ -53,7 +53,7 @@
      below card surfaces (--paper-50) so white cards read as "floating"
      panels instead of blending into the background. */
   --paper-0:   #FFFFFF;
-  --paper-50:  #F8F9FA;
+  --paper-50:  #F4F6F8;
   --paper-100: #F1F2F4;
   --paper-200: #E5E7EB;
   --paper-300: #D4D4D4;
@@ -74,6 +74,21 @@
   /* Aliases para uso em componentes (ações destrutivas / sucesso) */
   --rose-500: var(--red-500); --rose-50: var(--red-50);
   --emerald-500: var(--green-500); --emerald-50: var(--green-50);
+
+  /* DataViz accents — chart-only palette, deliberately separate from the
+     single navy UI accent. Calm, desaturated tones; no absolute black,
+     no vivid semaphore red/green. */
+  --chart-line: #3B4B7A;              /* line chart stroke + dots — dark, slightly grayed blue */
+  --chart-line-soft: rgba(59, 75, 122, 0.20);
+  --chart-funnel-1: #9AA6B8;          /* funnel: cool gray → pastel mint, continuous 3-stop gradient */
+  --chart-funnel-2: #86B4A8;
+  --chart-funnel-3: #6FC099;
+  --chart-status-enviado: #9AA6B8;    /* donut: calm status palette */
+  --chart-status-respondido: #8FA9C7;
+  --chart-status-interessado: #7FD1AE;
+  --chart-status-sem-interesse: #E7A3A3;
+  --chart-status-pausado: #E8C79A;
+  --chart-status-erro: #D6867F;
 
   /* Roles */
   --bg-page: var(--paper-50);
@@ -100,12 +115,13 @@
   --radius-xs: 8px; --radius-sm: 12px; --radius-md: 16px;
   --radius-lg: 20px; --radius-xl: 24px; --radius-2xl: 32px; --radius-full: 999px;
 
-  /* Shadows — soft and diffuse, low opacity, wide blur. Borders stay
-     hairline-thin; the shadow (not the border) does most of the separating. */
-  --shadow-xs: 0 1px 3px rgba(15, 23, 42, 0.04);
-  --shadow-sm: 0 4px 14px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03);
-  --shadow-md: 0 12px 28px rgba(15, 23, 42, 0.07), 0 3px 8px rgba(15, 23, 42, 0.04);
-  --shadow-lg: 0 24px 48px rgba(15, 23, 42, 0.10), 0 6px 14px rgba(15, 23, 42, 0.05);
+  /* Shadows — soft and diffuse, low opacity, wide blur. This is what makes a
+     white card read as "resting on" the off-white page instead of a border
+     doing the separating. */
+  --shadow-xs: 0 4px 20px rgba(0, 0, 0, 0.03);
+  --shadow-sm: 0 8px 28px rgba(0, 0, 0, 0.05), 0 2px 6px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 16px 36px rgba(0, 0, 0, 0.07), 0 4px 10px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 28px 56px rgba(0, 0, 0, 0.10), 0 8px 16px rgba(0, 0, 0, 0.05);
   --shadow-accent: 0 6px 18px rgba(10, 10, 10, 0.16);
 
   /* Motion */
@@ -219,21 +235,20 @@ body {
 .btn.lg { padding: 14px 24px; font-size: 14px; border-radius: var(--radius-sm); }
 
 /* ---------- Cards ---------- */
-/* White surface, hairline border, soft diffuse shadow at rest — no card
-   ever renders as a solid dark block. "Emphasized" KPI variants (accent /
-   dark / green-border) signal importance through a tinted number + icon
-   color instead of an inverted fill. */
+/* Every card is pure white — the only thing separating it from the
+   off-white page is a soft, wide-blur shadow (never a border doing the
+   work, never a solid dark fill). The one deliberate exception is
+   .green-border, a ~5%-opacity pastel tint reserved for a single
+   highlighted "this rate is good" card — not a general-purpose tone. */
 .card { background: var(--paper-0); border: 1px solid var(--paper-100); border-radius: var(--radius-md); padding: 28px; display: flex; flex-direction: column; gap: 14px; position: relative; box-shadow: var(--shadow-xs); transition: all var(--dur-base) var(--ease-out); }
 .card.clickable { cursor: pointer; }
 .card.clickable:hover { border-color: var(--paper-200); box-shadow: var(--shadow-sm); }
-.card.accent, .card.dark { background: var(--paper-0); border-color: var(--paper-100); color: var(--ink-300); }
-.card.soft { background: var(--paper-50); border-color: var(--paper-50); box-shadow: none; }
-.card.green-border { background: var(--green-50); border: 1px solid #BBF0CE; box-shadow: none; }
+.card.accent, .card.dark, .card.soft { background: var(--paper-0); border-color: var(--paper-100); color: var(--ink-300); }
+.card.green-border { background: #F3FAF6; border-color: #DCF3E3; }
 .card .label { font: 500 11px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); display: flex; justify-content: space-between; align-items: center; }
 .card .ic-circle { width: 30px; height: 30px; border-radius: 50%; background: var(--paper-100); display: inline-flex; align-items: center; justify-content: center; color: var(--ink-100); }
 .card.accent .ic-circle, .card.dark .ic-circle { background: var(--navy-50); color: var(--navy-600); }
 .card.green-border .ic-circle { background: #FFFFFF; color: #16A34A; }
-.card.soft .ic-circle { background: var(--paper-0); }
 .card .num { font-family: var(--font-sans-display); font-weight: 600; font-size: 26px; line-height: 1.05; letter-spacing: -0.02em; color: var(--ink-300); font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 .card.accent .num, .card.dark .num { color: var(--navy-600); }
 .card.green-border .num { color: #15803D; }
@@ -241,6 +256,35 @@ body {
 .card .delta .up { color: #16A34A; }
 .card .delta .down { color: #DC2626; }
 .card .delta .muted { color: var(--ink-50); font-weight: 400; }
+
+/* Bigger number for cards emphasized as primary metrics (bento "large" tier). */
+.card.lg-num .num { font-size: 36px; }
+
+/* Cards that share a slot in a bento layout (stacked half-height pair) —
+   tighter padding, smaller number, content centered in the shorter row. */
+.card.compact { padding: 18px 20px; gap: 6px; justify-content: center; }
+.card.compact .num { font-size: 19px; }
+.card.compact .label { font-size: 10px; }
+
+/* ---------- Bento KPI grid ---------- */
+/* Asymmetric composition: two wide primary cards, a stacked pair sharing
+   one card's footprint, and a row of narrow "rate" cards. Falls back to a
+   plain responsive grid below ~1080px where the asymmetry has no room. */
+.bento-grid { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(2, minmax(84px, auto)); grid-template-areas: "leads leads interessados interessados tempo resp taxaint custo" "leads leads interessados interessados erro resp taxaint custo"; gap: 20px; }
+.bento-leads { grid-area: leads; }
+.bento-interessados { grid-area: interessados; }
+.bento-tempo { grid-area: tempo; }
+.bento-erro { grid-area: erro; }
+.bento-resp { grid-area: resp; }
+.bento-taxaint { grid-area: taxaint; }
+.bento-custo { grid-area: custo; }
+@media (max-width: 1080px) {
+  .bento-grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: none; grid-template-areas: none; }
+  .bento-grid > * { grid-area: auto; }
+}
+@media (max-width: 620px) {
+  .bento-grid { grid-template-columns: 1fr; }
+}
 
 /* ---------- Section header ---------- */
 .section { display: flex; align-items: flex-end; justify-content: space-between; margin: 40px 0 20px; gap: 16px; }

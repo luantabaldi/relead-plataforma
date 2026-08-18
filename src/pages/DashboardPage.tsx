@@ -1637,22 +1637,23 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
               </div>
             ) : (
               <>
-                {/* Resumo de Métricas */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-                  <StatCard label="Leads disparados" value={metrics.total} icon="megaphone"
-                    note={`no período selecionado`} tone="white" />
-                  <StatCard label="Responderam" value={metrics.respondidos} icon="message-circle"
-                    note={`${metrics.taxaResp}% de resposta`} tone="soft" />
-                  <StatCard label="Interessados" value={metrics.interessados} icon="thumbs-up"
+                {/* Resumo de Métricas — bento grid: primárias grandes, par empilhado
+                    (Tempo médio / Taxa de erro) e destaques estreitos de taxa/custo. */}
+                <div className="bento-grid">
+                  <StatCard className="bento-leads" large label="Leads disparados" value={metrics.total} icon="megaphone"
+                    note="no período selecionado" tone="white" />
+                  <StatCard className="bento-interessados" large label="Interessados" value={metrics.interessados} icon="thumbs-up"
                     note={`${metrics.taxaInt}% dos que responderam`} tone="dark" />
-                  <StatCard label="Taxa de interessados" value={`${metrics.taxaIntDisparos}%`} icon="trending-up"
+                  <StatCard className="bento-tempo" compact label="Tempo médio de resposta" value={formatDuration(metrics.avgRespMs)} icon="clock"
+                    tone="soft" />
+                  <StatCard className="bento-erro" compact label="Taxa de erro" value={`${metrics.taxaErro}%`} icon="alert-triangle"
+                    note={`${metrics.erros} de ${metrics.total}`} tone="white" />
+                  <StatCard className="bento-resp" label="Responderam" value={metrics.respondidos} icon="message-circle"
+                    note={`${metrics.taxaResp}% de resposta`} tone="soft" />
+                  <StatCard className="bento-taxaint" label="Taxa de interessados" value={`${metrics.taxaIntDisparos}%`} icon="trending-up"
                     note="dos leads disparados" tone="green" />
-                  <StatCard label="Taxa de erro" value={`${metrics.taxaErro}%`} icon="alert-triangle"
-                    note={`${metrics.erros} de ${metrics.total} disparos`} tone="white" />
-                  <StatCard label="Tempo médio de resposta" value={formatDuration(metrics.avgRespMs)} icon="clock"
-                    note="entre disparo e resposta do lead" tone="soft" />
-                  <StatCard label="Custo por interessado" value={metrics.interessados > 0 ? `US$ ${custoPorInteressado.toFixed(2)}` : '—'} icon="wallet"
-                    note="custo Meta ÷ leads interessados" tone="dark" />
+                  <StatCard className="bento-custo" label="Custo por interessado" value={metrics.interessados > 0 ? `US$ ${custoPorInteressado.toFixed(2)}` : '—'} icon="wallet"
+                    note="custo Meta ÷ interessados" tone="white" />
                 </div>
 
                 {conversations.length === 0 && (
@@ -2094,8 +2095,22 @@ const ManageCard: React.FC<{
 const StatCard: React.FC<{
   label: string; value: React.ReactNode; icon: React.ComponentProps<typeof Icon>['name'];
   note?: string; tone?: 'white' | 'soft' | 'dark' | 'green';
-}> = ({ label, value, icon, note, tone = 'white' }) => (
-  <div className={'card' + (tone === 'dark' ? ' accent' : tone === 'soft' ? ' soft' : tone === 'green' ? ' green-border' : '')}>
+  /** Grid placement class for bento layouts (e.g. "bento-leads") — merged onto the card's own tone classes. */
+  className?: string;
+  /** Tighter padding/number size for cards that share a slot (stacked half-height pairs). */
+  compact?: boolean;
+  /** Bumps the number size for cards emphasized as primary metrics. */
+  large?: boolean;
+}> = ({ label, value, icon, note, tone = 'white', className, compact, large }) => (
+  <div
+    className={
+      'card'
+      + (tone === 'dark' ? ' accent' : tone === 'soft' ? ' soft' : tone === 'green' ? ' green-border' : '')
+      + (compact ? ' compact' : '')
+      + (large ? ' lg-num' : '')
+      + (className ? ' ' + className : '')
+    }
+  >
     <div className="label">
       <span>{label}</span>
       <span className="ic-circle"><Icon name={icon} size={16} /></span>
@@ -2124,6 +2139,26 @@ interface ChartProps {
   }>;
   dataInicio: Date;
   dataFim: Date;
+}
+
+/** Catmull-Rom → cubic Bezier smoothing so line charts read as soft curves
+ * instead of pointed line segments. Standard 1/6-tension conversion. */
+function smoothLinePath(pts: { x: number; y: number }[]): string {
+  if (pts.length === 0) return '';
+  if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i === 0 ? i : i - 1];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+  }
+  return d;
 }
 
 const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim }) => {
@@ -2171,9 +2206,9 @@ const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim })
     return { x, y, val, date };
   });
 
-  const linePath = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-  const areaPath = points.length > 0 
-    ? `${linePath} L ${points[points.length - 1].x} ${height - paddingBottom} L ${points[0].x} ${height - paddingBottom} Z` 
+  const linePath = smoothLinePath(points);
+  const areaPath = points.length > 0
+    ? `${linePath} L ${points[points.length - 1].x} ${height - paddingBottom} L ${points[0].x} ${height - paddingBottom} Z`
     : '';
 
   const labelInterval = Math.max(1, Math.floor(dataPoints.length / 5));
@@ -2189,8 +2224,8 @@ const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim })
         <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" style={{ overflow: 'visible' }}>
           <defs>
             <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--navy-500)" stopOpacity="0.25" />
-              <stop offset="100%" stopColor="var(--navy-500)" stopOpacity="0" />
+              <stop offset="0%" stopColor="var(--chart-line)" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="var(--chart-line)" stopOpacity="0" />
             </linearGradient>
           </defs>
 
@@ -2227,7 +2262,7 @@ const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim })
             <path
               d={linePath}
               fill="none"
-              stroke="var(--navy-500)"
+              stroke="var(--chart-line)"
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -2259,7 +2294,7 @@ const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim })
                 cx={p.x}
                 cy={p.y}
                 r={hoveredPoint?.date === p.date ? 5 : 3.5}
-                fill={hoveredPoint?.date === p.date ? "var(--navy-700)" : "var(--navy-500)"}
+                fill={hoveredPoint?.date === p.date ? "#2A3559" : "var(--chart-line)"}
                 stroke="#fff"
                 strokeWidth="1.5"
                 style={{ transition: 'all 0.1s ease', cursor: 'pointer' }}
@@ -2286,7 +2321,7 @@ const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim })
               left: `${(hoveredPoint.x / width) * 100}%`,
               top: `${(hoveredPoint.y / height) * 100 - 32}%`,
               transform: 'translateX(-50%)',
-              background: 'var(--navy-700)',
+              background: 'var(--chart-line)',
               color: '#fff',
               padding: '4px 8px',
               borderRadius: 6,
@@ -2378,6 +2413,30 @@ const CampaignBarChart: React.FC<{ conversations: any[] }> = ({ conversations })
   );
 };
 
+/** Rounds the corners of an arbitrary polygon by backing off `radius` px
+ * along each edge and joining with a quadratic curve through the original
+ * vertex — works for the funnel's slanted trapezoid edges too, not just
+ * axis-aligned rectangles. */
+function roundedPolygonPath(points: { x: number; y: number }[], radius: number): string {
+  const n = points.length;
+  let d = '';
+  for (let i = 0; i < n; i++) {
+    const prev = points[(i - 1 + n) % n];
+    const curr = points[i];
+    const next = points[(i + 1) % n];
+    const toPrev = { x: prev.x - curr.x, y: prev.y - curr.y };
+    const toNext = { x: next.x - curr.x, y: next.y - curr.y };
+    const lenPrev = Math.hypot(toPrev.x, toPrev.y) || 1;
+    const lenNext = Math.hypot(toNext.x, toNext.y) || 1;
+    const rP = Math.min(radius, lenPrev / 2);
+    const rN = Math.min(radius, lenNext / 2);
+    const start = { x: curr.x + (toPrev.x / lenPrev) * rP, y: curr.y + (toPrev.y / lenPrev) * rP };
+    const end = { x: curr.x + (toNext.x / lenNext) * rN, y: curr.y + (toNext.y / lenNext) * rN };
+    d += (i === 0 ? `M ${start.x} ${start.y} ` : `L ${start.x} ${start.y} `) + `Q ${curr.x} ${curr.y} ${end.x} ${end.y} `;
+  }
+  return d + 'Z';
+}
+
 const FunnelChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
   const disparados = conversations.length;
   const responderam = conversations.filter((c) =>
@@ -2395,17 +2454,18 @@ const FunnelChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
   const widthResp = disparados ? Math.max(FLOOR, Math.min(100, respPercent)) : 100;
   const widthInt = disparados ? Math.max(FLOOR - 4, Math.min(widthResp, intPercent)) : widthResp;
 
+  // Continuous cool-gray → pastel-mint gradient across the three stages —
+  // no absolute black, no vivid semaphore green.
   const bands = [
-    { label: 'Disparados', count: disparados, percentLabel: '100%', top: 100, bottom: 100, color: 'var(--navy-600)' },
-    { label: 'Responderam', count: responderam, percentLabel: `${respPercent}% dos disparados`, top: 100, bottom: widthResp, color: 'var(--navy-400)' },
-    { label: 'Interessados', count: interessados, percentLabel: `${relIntPercent}% dos que responderam`, top: widthResp, bottom: widthInt, color: 'var(--green-500)' },
+    { label: 'Disparados', count: disparados, percentLabel: '100%', top: 100, bottom: 100, color: 'var(--chart-funnel-1)' },
+    { label: 'Responderam', count: responderam, percentLabel: `${respPercent}% dos disparados`, top: 100, bottom: widthResp, color: 'var(--chart-funnel-2)' },
+    { label: 'Interessados', count: interessados, percentLabel: `${relIntPercent}% dos que responderam`, top: widthResp, bottom: widthInt, color: 'var(--chart-funnel-3)' },
   ];
 
-  const clipPath = (top: number, bottom: number) => {
-    const topInset = (100 - top) / 2;
-    const bottomInset = (100 - bottom) / 2;
-    return `polygon(${topInset}% 0%, ${100 - topInset}% 0%, ${100 - bottomInset}% 100%, ${bottomInset}% 100%)`;
-  };
+  const svgWidth = 400;
+  const bandHeight = 62;
+  const gap = 12;
+  const totalHeight = bands.length * bandHeight + (bands.length - 1) * gap;
 
   return (
     <div className="card" style={{ padding: 20, flex: 1, minWidth: 280, minHeight: 280, display: 'flex', flexDirection: 'column' }}>
@@ -2418,29 +2478,50 @@ const FunnelChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
           Sem disparos no período selecionado
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center' }}>
-          {bands.map((band, idx) => (
-            <div
-              key={idx}
-              style={{
-                position: 'relative',
-                height: 66,
-                background: band.color,
-                clipPath: clipPath(band.top, band.bottom),
-                borderTop: idx > 0 ? '1px solid rgba(255,255,255,0.35)' : undefined,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'clip-path 0.5s ease',
-              }}
-            >
-              <div style={{ textAlign: 'center', color: '#fff' }}>
+        <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+          <svg viewBox={`0 0 ${svgWidth} ${totalHeight}`} width="100%" height={totalHeight} style={{ overflow: 'visible' }}>
+            {bands.map((band, idx) => {
+              const yTop = idx * (bandHeight + gap);
+              const yBottom = yTop + bandHeight;
+              const topInset = (svgWidth - svgWidth * (band.top / 100)) / 2;
+              const bottomInset = (svgWidth - svgWidth * (band.bottom / 100)) / 2;
+              const pts = [
+                { x: topInset, y: yTop },
+                { x: svgWidth - topInset, y: yTop },
+                { x: svgWidth - bottomInset, y: yBottom },
+                { x: bottomInset, y: yBottom },
+              ];
+              return (
+                <path
+                  key={idx}
+                  d={roundedPolygonPath(pts, 10)}
+                  fill={band.color}
+                  style={{ transition: 'd 0.4s ease' }}
+                />
+              );
+            })}
+          </svg>
+
+          {bands.map((band, idx) => {
+            const yTop = idx * (bandHeight + gap);
+            const yCenter = yTop + bandHeight / 2;
+            return (
+              <div
+                key={idx}
+                style={{
+                  position: 'absolute', left: 0, right: 0,
+                  top: `${(yCenter / totalHeight) * 100}%`, transform: 'translateY(-50%)',
+                  textAlign: 'center', color: '#1F2937', pointerEvents: 'none',
+                }}
+              >
+                {/* Dark text (not white) — it stays legible across the whole
+                    gray-to-pastel-mint range, including the lightest band. */}
                 <div style={{ fontWeight: 600, fontSize: 12 }}>{band.label}</div>
                 <div className="t-mono" style={{ fontSize: 13, fontWeight: 700 }}>{band.count}</div>
-                <div className="t-mono" style={{ fontSize: 9, opacity: 0.85 }}>{band.percentLabel}</div>
+                <div className="t-mono" style={{ fontSize: 9, opacity: 0.75 }}>{band.percentLabel}</div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -2466,13 +2547,15 @@ const DonutChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
 
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
+  // Calm, desaturated status palette — no absolute black, no vivid semaphore
+  // red/green (see --chart-status-* in dash.css).
   const colors: Record<string, string> = {
-    enviado: 'var(--navy-600)',
-    respondido: 'var(--ink-50)',
-    interessado: 'var(--green-500)',
-    sem_interesse: 'var(--red-500)',
-    pausado: 'var(--amber-500)',
-    erro: '#991B1B',
+    enviado: 'var(--chart-status-enviado)',
+    respondido: 'var(--chart-status-respondido)',
+    interessado: 'var(--chart-status-interessado)',
+    sem_interesse: 'var(--chart-status-sem-interesse)',
+    pausado: 'var(--chart-status-pausado)',
+    erro: 'var(--chart-status-erro)',
   };
 
   const labels: Record<string, string> = {

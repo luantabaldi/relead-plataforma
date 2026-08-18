@@ -96,14 +96,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const pageItems = filteredConversations.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
-    <div
-      className="flex gap-5"
-      style={{ flex: 1, minHeight: 0, padding: '24px 32px 32px', overflow: 'hidden' }}
-    >
-      {/* ── Left: list ── */}
+    <div style={{ flex: 1, minHeight: 0, padding: '24px 32px 32px', overflow: 'hidden' }}>
+      {/* One unified white surface — list and thread are columns inside it,
+          divided by a hairline border, instead of two cards floating
+          separately on the page background. */}
       <div
         className="card"
-        style={{ width: 360, padding: 0, gap: 0, overflow: 'hidden', flexShrink: 0 }}
+        style={{
+          height: '100%', padding: 0, gap: 0, overflow: 'hidden',
+          display: 'grid', gridTemplateColumns: '360px 1fr',
+        }}
+      >
+      {/* ── Left: list ── */}
+      <div
+        style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', borderRight: '1px solid var(--paper-100)' }}
       >
         <div style={{ padding: '18px 18px 14px', borderBottom: '1px solid var(--paper-200)' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -255,10 +261,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* ── Right: conversation thread ── */}
-      <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+      <div style={{ minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {isLoadingThread && activeId ? (
           // Skeleton do painel direito enquanto busca os detalhes da conversa
-          <div className="card" style={{ height: '100%', padding: 0, gap: 0, overflow: 'hidden' }}>
+          <div style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <style>{`
               @keyframes thread-skeleton-pulse {
                 0%, 100% { opacity: 0.55; }
@@ -286,7 +292,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         ) : selectedConversation ? (
           <ConversationThread conversation={selectedConversation} onAction={handleAction} pendingAction={pendingAction ?? null} />
         ) : (
-          <div className="card" style={{ height: '100%', justifyContent: 'center' }}>
+          <div style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div className="empty">
               <span className="ic"><Icon name="message-circle" size={24} /></span>
               <span className="t-mono" style={{ color: 'var(--ink-50)', fontSize: 12 }}>
@@ -295,6 +301,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

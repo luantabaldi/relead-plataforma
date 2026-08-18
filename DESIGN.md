@@ -11,7 +11,7 @@ Light only, low-contrast canvas — Salvy-style: clean, airy, quiet. No dark mod
 Restrained. One near-black "brand" color (used only for primary CTAs, active states and main headings) + true-neutral grays + status colors expressed as pastel tints, never as solid/vibrant fills.
 
 - Brand: `--navy-600 #0A0A0A` (primary/CTA/active — near-black, no hue), `--navy-500 #333333` (hover)
-- Canvas: page background `--paper-50 #F8F9FA` (subtle off-white), card/surface `--paper-0 #FFFFFF` — cards sit one tint lighter than the page so they read as floating panels, not blocks blending into the background
+- Canvas: page background `--paper-50 #F4F6F8` (subtle off-white), card/surface `--paper-0 #FFFFFF` — every card is pure white; the resting `box-shadow: 0 4px 20px rgba(0,0,0,.03)` (`--shadow-xs`) is what separates it from the page, not a background tint or a heavy border. The one deliberate exception is a ~5%-opacity pastel tint (`.card.green-border`, `#F3FAF6`) reserved for a single highlighted "this rate is good" card.
 - Hairline border `--paper-200 #E5E7EB`
 - Ink (true neutral, no warm/cool undertone): headline `--ink-300 #0A0A0A`, body `--ink-200 #262626`, muted `--ink-50 #737373`
 - Semantic status colors are always pastel: ~12% tint background + a darker shade of the same family for text (`--green-50`/`#166534`, `--amber-50`/`#92400E`, `--red-50`/`#991B1B`). No solid/chapado green or red anywhere, and color is never the only signal (icon/text always pairs with it).
@@ -37,6 +37,9 @@ Spacing is generous: page padding 40px (72px bottom), card padding 28px, section
 - Status tags (`.chip`): pastel background + matching darker text, pill-shaped, no border. Source of truth for status → label/color/icon is `src/components/statusMeta.ts`.
 - Tables (`.dash-table`): no cell borders, only a `--paper-200` hairline divider between rows, generous cell padding — never cramped.
 - Focus ring: `0 0 0 3px` near-black at 14% opacity.
+- KPI grids use a bento layout where the composition earns it (`.bento-grid` in `dash.css`, see the Performance tab): two wide primary cards (`.card.lg-num`, 36px number), a stacked half-height pair sharing one card's footprint (`.card.compact`), and narrow "rate" cards — not a uniform equal-size grid. Falls back to a plain responsive grid below 1080px.
+- A view that would otherwise be two cards floating separately on the page background (e.g. a list + detail split) is one unified `.card` with an internal CSS grid and a hairline `border-right` between panes — never nested cards.
+- DataViz gets its own restrained palette, separate from UI chrome (`--chart-*` tokens in `dash.css`): a single dark desaturated blue for line charts (smooth Catmull-Rom curves, never straight segments, with a soft area-gradient fill), a continuous cool-gray → pastel-mint gradient for the funnel (rounded-corner bars, gap between stages), and calm/pastel status colors for the donut — no absolute black, no vivid semaphore red/green anywhere in a chart.
 
 ## Motion
 

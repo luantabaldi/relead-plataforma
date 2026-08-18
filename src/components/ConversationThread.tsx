@@ -41,7 +41,7 @@ export const ConversationThread: React.FC<ConversationThreadProps> = ({ conversa
   }, [messages.length]);
 
   return (
-    <div className="card" style={{ height: '100%', padding: 0, gap: 0, overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--paper-200)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
