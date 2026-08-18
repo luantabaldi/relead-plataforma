@@ -52,14 +52,23 @@ export const CampaignLogsTab: React.FC<CampaignLogsTabProps> = ({ visible = true
 
   if (!visible) return null;
 
-  const formatDate = (date: Date) => {
-    const d = new Date(date);
-    return d.toLocaleDateString('pt-BR', { month: 'short', day: 'numeric', year: '2-digit' });
+  // null (sem lead enviado ainda) ou uma data inválida nunca deve virar
+  // "31 de dez. de 69" (época Unix) — mostra um traço neutro em vez disso.
+  const isValidDate = (date: Date | null): date is Date => !!date && !isNaN(date.getTime());
+
+  const formatDate = (date: Date | null) => {
+    if (!isValidDate(date)) return '--';
+    return date.toLocaleDateString('pt-BR', { month: 'short', day: 'numeric', year: '2-digit' });
   };
 
-  const formatTime = (date: Date) => {
-    const d = new Date(date);
-    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const formatTime = (date: Date | null) => {
+    if (!isValidDate(date)) return '--';
+    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDateTime = (date: Date | null) => {
+    if (!isValidDate(date)) return 'Data não registrada';
+    return `${formatDate(date)} às ${formatTime(date)}`;
   };
 
   const getTaxaColor = (taxa: number) => {
@@ -274,20 +283,23 @@ export const CampaignLogsTab: React.FC<CampaignLogsTabProps> = ({ visible = true
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', fontSize: '11px' }}>
-                  <div>
+                {/* Agrupadas num "mini-dashboard" compacto à direita, em vez de
+                    esticadas pela largura toda do card (grid 1fr forçava um
+                    vão enorme entre Responderam e Erros). */}
+                <div style={{ display: 'flex', gap: '2rem', justifyContent: 'flex-end', fontSize: '11px' }}>
+                  <div style={{ textAlign: 'right' }}>
                     <div style={{ color: 'var(--ink-100)', marginBottom: '2px' }}>Responderam</div>
                     <div style={{ fontWeight: 600, color: 'var(--ink-500)' }}>
                       {campaign.respondidos} ({campaign.taxa_resposta}%)
                     </div>
                   </div>
-                  <div>
+                  <div style={{ textAlign: 'right' }}>
                     <div style={{ color: 'var(--ink-100)', marginBottom: '2px' }}>Interessados</div>
                     <div style={{ fontWeight: 600, color: 'var(--ink-500)' }}>
                       {campaign.interessados} ({campaign.taxa_interesse}%)
                     </div>
                   </div>
-                  <div>
+                  <div style={{ textAlign: 'right' }}>
                     <div style={{ color: 'var(--ink-100)', marginBottom: '2px' }}>Erros</div>
                     <div style={{ fontWeight: 600, color: 'var(--ink-500)' }}>
                       {campaign.erros} ({campaign.taxa_erro}%)
@@ -334,7 +346,7 @@ export const CampaignLogsTab: React.FC<CampaignLogsTabProps> = ({ visible = true
                 Início
               </p>
               <p style={{ margin: 0, fontSize: '14px', color: 'var(--ink-500)' }}>
-                {formatDate(selectedCampaign.data_inicio)} às {formatTime(selectedCampaign.data_inicio)}
+                {formatDateTime(selectedCampaign.data_inicio)}
               </p>
             </div>
 
@@ -344,7 +356,7 @@ export const CampaignLogsTab: React.FC<CampaignLogsTabProps> = ({ visible = true
                 Conclusão
               </p>
               <p style={{ margin: 0, fontSize: '14px', color: 'var(--ink-500)' }}>
-                {formatDate(selectedCampaign.data_fim)} às {formatTime(selectedCampaign.data_fim)}
+                {formatDateTime(selectedCampaign.data_fim)}
               </p>
             </div>
 
@@ -428,7 +440,9 @@ export const CampaignLogsTab: React.FC<CampaignLogsTabProps> = ({ visible = true
                 Duração
               </p>
               <p style={{ margin: 0, fontSize: '24px', fontWeight: 600, color: 'var(--ink-500)' }}>
-                {Math.ceil((selectedCampaign.data_fim.getTime() - selectedCampaign.data_inicio.getTime()) / 60000)}m
+                {isValidDate(selectedCampaign.data_inicio) && isValidDate(selectedCampaign.data_fim)
+                  ? `${Math.ceil((selectedCampaign.data_fim.getTime() - selectedCampaign.data_inicio.getTime()) / 60000)}m`
+                  : '--'}
               </p>
             </div>
           </div>

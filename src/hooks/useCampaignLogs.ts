@@ -14,8 +14,10 @@ export interface CampaignLog {
   erros: number;
   pendentes: number;
   status: CampaignStatus;
-  data_inicio: Date;
-  data_fim: Date;
+  /** null quando nenhum lead da campanha tem data_envio ainda (só pendentes) —
+   * nunca usar `new Date(null)` aqui, isso vira época Unix (31/12/69). */
+  data_inicio: Date | null;
+  data_fim: Date | null;
   taxa_resposta: number;
   taxa_interesse: number;
   taxa_erro: number;
@@ -61,8 +63,8 @@ export const useCampaignLogs = () => {
             erros: 0,
             pendentes: 0,
             status: 'concluida',
-            data_inicio: new Date(lead.data_envio),
-            data_fim: new Date(lead.data_envio),
+            data_inicio: lead.data_envio ? new Date(lead.data_envio) : null,
+            data_fim: lead.data_envio ? new Date(lead.data_envio) : null,
             taxa_resposta: 0,
             taxa_interesse: 0,
             taxa_erro: 0,
@@ -75,8 +77,8 @@ export const useCampaignLogs = () => {
         // Atualizar datas
         if (lead.data_envio) {
           const sendDate = new Date(lead.data_envio);
-          if (sendDate < entry.data_inicio) entry.data_inicio = sendDate;
-          if (sendDate > entry.data_fim) entry.data_fim = sendDate;
+          if (!entry.data_inicio || sendDate < entry.data_inicio) entry.data_inicio = sendDate;
+          if (!entry.data_fim || sendDate > entry.data_fim) entry.data_fim = sendDate;
         }
 
         // Contar por status
@@ -105,7 +107,7 @@ export const useCampaignLogs = () => {
         taxa_erro: log.total > 0 ? Math.round((log.erros / log.total) * 100) : 0,
       }));
 
-      setCampaigns(logs.sort((a, b) => b.data_fim.getTime() - a.data_fim.getTime()));
+      setCampaigns(logs.sort((a, b) => (b.data_fim?.getTime() ?? 0) - (a.data_fim?.getTime() ?? 0)));
     } catch (err) {
       console.warn('⚠️ Erro ao buscar logs de campanhas:', err);
       setCampaigns([]);
@@ -143,9 +145,13 @@ export const useCampaignLogs = () => {
   const filteredCampaigns = campaigns.filter(campaign => {
     const startDate = dateRange.start ? new Date(dateRange.start).setHours(0, 0, 0, 0) : null;
     const endDate = dateRange.end ? new Date(dateRange.end).setHours(23, 59, 59, 999) : null;
-    const campaignDate = campaign.data_inicio.getTime();
+    const campaignDate = campaign.data_inicio ? campaign.data_inicio.getTime() : null;
 
-    const dateMatch = (!startDate || campaignDate >= startDate) && (!endDate || campaignDate <= endDate);
+    // Sem data confirmada (só leads pendentes) só entra no filtro de período
+    // se nenhum período estiver selecionado — não dá pra saber se "cabe".
+    const dateMatch =
+      (!startDate || (campaignDate !== null && campaignDate >= startDate)) &&
+      (!endDate || (campaignDate !== null && campaignDate <= endDate));
     const nameMatch = !selectedCampaignName || campaign.nome_campanha === selectedCampaignName;
     const tipoMatch = !selectedTipo || campaign.tipo_campanha === selectedTipo;
     const statusMatch = !selectedStatus || campaign.status === selectedStatus;
@@ -168,9 +174,9 @@ export const useCampaignLogs = () => {
       c.taxa_interesse + '%',
       c.erros,
       c.taxa_erro + '%',
-      c.data_inicio.toLocaleString('pt-BR'),
-      c.data_fim.toLocaleString('pt-BR'),
-      Math.ceil((c.data_fim.getTime() - c.data_inicio.getTime()) / 60000),
+      c.data_inicio ? c.data_inicio.toLocaleString('pt-BR') : '--',
+      c.data_fim ? c.data_fim.toLocaleString('pt-BR') : '--',
+      c.data_inicio && c.data_fim ? Math.ceil((c.data_fim.getTime() - c.data_inicio.getTime()) / 60000) : '--',
     ]);
 
     const csvContent = [headers, ...rows]

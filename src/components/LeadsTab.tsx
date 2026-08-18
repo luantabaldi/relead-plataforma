@@ -1,10 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useLeadsList, Lead, MOTIVOS_OBJECAO, TIPOS_ERRO, isSemInteresse, isErro, isRespostaAutomatica } from '../hooks/useLeadsList';
 import { Icon } from './Icon';
 import '../styles/leads-tab.css';
 
 export const LeadsTab: React.FC = () => {
   const { leads, allLeads, isLoading, filters, setFilters, stats, campanhaOptions, empreendimentoOptions, updateLeadClassification, hasMoreData } = useLeadsList();
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const advancedFilterCount = [
+    filters.status, filters.nomeCampanha, filters.empreendimentoId, filters.dataInicio, filters.dataFim,
+  ].filter(Boolean).length;
 
   const handleClearFilters = () => {
     setFilters({
@@ -86,18 +91,33 @@ export const LeadsTab: React.FC = () => {
       {/* Filter Panel */}
       <div className="filter-panel">
         <div className="filter-content">
-            <div className="filter-grid">
-              <div className="filter-group">
-                <label>Buscar por Telefone ou Nome</label>
+            <div className="filter-search-row">
+              <div className="search-input-wrap">
+                <Icon name="search" size={16} className="search-input-icon" />
                 <input
                   type="text"
-                  placeholder="Ex: 11999999999 ou João"
+                  placeholder="Buscar por telefone ou nome…"
                   value={filters.searchTerm}
                   onChange={(e) => setFilters({ ...filters, searchTerm: e.target.value })}
-                  className="filter-input"
+                  className="filter-input search-input"
+                  aria-label="Buscar por telefone ou nome"
                 />
               </div>
+              <button
+                type="button"
+                className={`btn-advanced-filters${advancedFilterCount > 0 ? ' active' : ''}`}
+                onClick={() => setShowAdvanced((s) => !s)}
+                aria-expanded={showAdvanced}
+              >
+                <Icon name="filter" size={14} />
+                Filtros avançados
+                {advancedFilterCount > 0 && <span className="filter-count-badge">{advancedFilterCount}</span>}
+                <Icon name={showAdvanced ? 'chevron-up' : 'chevron-down'} size={14} />
+              </button>
+            </div>
 
+            {showAdvanced && (
+            <div className="filter-grid">
               <div className="filter-group">
                 <label>Status</label>
                 <select
@@ -164,6 +184,7 @@ export const LeadsTab: React.FC = () => {
                 />
               </div>
             </div>
+            )}
 
             {hasActiveFilters && (
               <button className="btn-clear-filters" onClick={handleClearFilters}>

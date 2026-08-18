@@ -44,7 +44,15 @@ export const Topbar: React.FC<TopbarProps> = ({ syncing = false, actions, sessio
         <span className="av" style={{ background: 'var(--navy-500)', color: '#fff' }}>{userInitials}</span>
         <span>
           <span className="nm" style={{ display: 'block', fontWeight: 600 }}>{rawName}</span>
-          <span className="rl">{syncing ? 'Sincronizando' : 'Conectado'}</span>
+          <span className="rl" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span
+              style={{
+                width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                background: syncing ? 'var(--amber-500)' : '#16A34A',
+              }}
+            />
+            {syncing ? 'Sincronizando' : 'Conectado'}
+          </span>
         </span>
         <button
           type="button"
@@ -57,18 +65,18 @@ export const Topbar: React.FC<TopbarProps> = ({ syncing = false, actions, sessio
             padding: 6,
             background: 'none',
             border: 'none',
-            color: 'var(--rose-500)',
+            color: 'var(--ink-50)',
             cursor: 'pointer',
             borderRadius: '50%',
-            transition: 'background 0.2s ease',
+            transition: 'background 0.2s ease, color 0.2s ease',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--paper-100)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--paper-100)'; e.currentTarget.style.color = 'var(--ink-300)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'var(--ink-50)'; }}
         >
-          <Icon name="x-circle" size={18} />
+          <Icon name="log-out" size={17} />
         </button>
       </div>
       {confirmDialog}

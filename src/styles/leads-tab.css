@@ -113,6 +113,77 @@
   gap: 16px;
 }
 
+/* Só a busca fica visível por padrão — o resto vive atrás de "Filtros
+   avançados", pra área não ficar poluída com 6 campos de uma vez. */
+.filter-search-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.search-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+  max-width: 420px;
+}
+
+.search-input-wrap .search-input-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink-50);
+  pointer-events: none;
+}
+
+.search-input-wrap .search-input {
+  width: 100%;
+  padding-left: 40px;
+  border-radius: var(--radius-full);
+}
+
+.btn-advanced-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--paper-200);
+  background: var(--paper-0);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-200);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-snap);
+  flex-shrink: 0;
+}
+
+.btn-advanced-filters:hover {
+  background: var(--paper-100);
+}
+
+.btn-advanced-filters.active {
+  border-color: var(--navy-200);
+  color: var(--navy-700);
+}
+
+.filter-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--navy-600);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -140,12 +211,12 @@ select.filter-input {
 
 .filter-input {
   padding: 10px 14px;
-  border: 1px solid var(--paper-200);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--paper-100);
+  border-radius: var(--radius-md);
   font-family: var(--font-body);
   font-size: 13px;
   color: var(--ink-200);
-  background: var(--paper-0);
+  background: var(--paper-50);
   transition: all var(--dur-fast) var(--ease-snap);
 }
 
@@ -155,6 +226,7 @@ select.filter-input {
 
 .filter-input:focus {
   outline: none;
+  background: var(--paper-0);
   border-color: var(--paper-300);
   box-shadow: var(--focus-ring);
 }
