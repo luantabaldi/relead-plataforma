@@ -14,7 +14,7 @@ export type IconName =
   | 'pause' | 'alert-triangle' | 'file-text' | 'building' | 'calendar' | 'phone'
   | 'user' | 'sparkles' | 'refresh' | 'copy' | 'more-horizontal' | 'trending-up'
   | 'map-pin' | 'wallet' | 'rotate-ccw' | 'megaphone' | 'list' | 'home'
-  | 'pencil' | 'trash' | 'eye' | 'bar-chart-2' | 'chevron-left' | 'chevron-right' | 'play';
+  | 'pencil' | 'trash' | 'eye' | 'bar-chart-2' | 'chevron-left' | 'chevron-right' | 'play' | 'cpu';
 
 interface IconProps {
   name: IconName;
@@ -76,6 +76,7 @@ const PATHS: Record<IconName, React.ReactNode> = {
   'chevron-left': <><path d="m15 18-6-6 6-6" /></>,
   'chevron-right': <><path d="m9 18 6-6-6-6" /></>,
   play: <><polygon points="6 3 20 12 6 21 6 3" /></>,
+  cpu: <><rect width="16" height="16" x="4" y="4" rx="2" /><rect width="6" height="6" x="9" y="9" rx="1" /><path d="M15 2v2" /><path d="M15 20v2" /><path d="M2 15h2" /><path d="M2 9h2" /><path d="M20 15h2" /><path d="M20 9h2" /><path d="M9 2v2" /><path d="M9 20v2" /></>,
 };
 
 export const Icon: React.FC<IconProps> = ({ name, size = 18, className, strokeWidth = 1.5, style }) => (

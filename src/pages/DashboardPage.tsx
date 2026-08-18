@@ -8,6 +8,7 @@ import { Toast } from '../components/Toast';
 import { ActiveDispatchesModal } from '../components/ActiveDispatchesModal';
 import { CampaignLogsTab } from '../components/CampaignLogsTab';
 import { LeadsTab } from '../components/LeadsTab';
+import { BlacklistTab } from '../components/BlacklistTab';
 import { useConversations } from '../hooks/useConversations';
 import { useHash } from '../hooks/useHash';
 import { useToast } from '../hooks/useToast';
@@ -15,6 +16,7 @@ import { useConfirm } from '../hooks/useConfirm';
 import { useActiveDispatches } from '../hooks/useActiveDispatches';
 import { usePausedDispatches } from '../hooks/usePausedDispatches';
 import { useMetaKpis, NumeroSaude, CustoPorDia, TemplateKpi } from '../hooks/useMetaKpis';
+import { useGeminiKpis, CustoGeminiPorCampanha } from '../hooks/useGeminiKpis';
 import { friendlyError } from '../lib/friendlyError';
 import { FilterOptions, CampaignType } from '../types';
 import { supabase } from '../lib/supabase';
@@ -52,6 +54,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
     totalRespondidos: kpiTotalRespondidos, totalReativados: kpiTotalReativados,
     custoPorResposta, custoPorReativacao, isLoading: isLoadingKpis,
   } = useMetaKpis(kpiPeriod);
+
+  const {
+    custoTotalUsd: custoGeminiTotalUsd, tokensTotal: geminiTokensTotal, totalChamadas: geminiTotalChamadas,
+    custoPorDia: custoGeminiPorDia, custoPorCampanha: custoGeminiPorCampanha, isLoading: isLoadingGeminiKpis,
+  } = useGeminiKpis(kpiPeriod);
 
   const {
     conversations, isLoading, handleAction, refetch, selectedDispatchId, setSelectedDispatchId,
@@ -1736,6 +1743,90 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                     </table>
                   )}
                 </div>
+
+                {/* Custo do Gemini (IA) — sincronizado periodicamente do histórico de execuções do n8n */}
+                <div style={{ marginTop: 32, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Icon name="sparkles" size={18} style={{ color: 'var(--navy-600)' }} />
+                  <h3 className="t-h2" style={{ margin: 0, fontSize: 18 }}>Custo da IA <em>(Gemini)</em></h3>
+                </div>
+
+                {isLoadingGeminiKpis ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="card skeleton-pulse" style={{ height: 110, padding: 20 }}>
+                        <div className="skeleton-line" style={{ width: '60%', height: 12, marginBottom: 12 }} />
+                        <div className="skeleton-line" style={{ width: '40%', height: 28 }} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                      <StatCard
+                        label="Custo total do Gemini"
+                        value={`US$ ${custoGeminiTotalUsd.toFixed(4)}`}
+                        icon="wallet"
+                        note="Custo real, por tokens usados"
+                        tone="dark"
+                      />
+                      <StatCard
+                        label="Tokens consumidos"
+                        value={geminiTokensTotal.toLocaleString('pt-BR')}
+                        icon="cpu"
+                        note={`${geminiTotalChamadas} chamadas no período`}
+                        tone="soft"
+                      />
+                      <StatCard
+                        label="Custo por chamada"
+                        value={geminiTotalChamadas > 0 ? `US$ ${(custoGeminiTotalUsd / geminiTotalChamadas).toFixed(5)}` : '—'}
+                        icon="message-circle"
+                        tone="green"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6" style={{ marginTop: 20 }}>
+                      <CustoPorDiaChart custoPorDia={custoGeminiPorDia} />
+
+                      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--paper-200)' }}>
+                          <h4 className="t-serif" style={{ fontSize: 16, margin: 0, color: 'var(--navy-700)' }}>
+                            Custo por campanha
+                          </h4>
+                        </div>
+                        {custoGeminiPorCampanha.length === 0 ? (
+                          <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-200)' }}>
+                            Nenhuma chamada do Gemini registrada no período.
+                          </div>
+                        ) : (
+                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 }}>
+                            <thead>
+                              <tr style={{ background: 'var(--paper-100)', borderBottom: '1px solid var(--paper-200)' }}>
+                                <th style={{ padding: '12px 20px', fontWeight: 600, color: 'var(--ink-100)' }}>Campanha</th>
+                                <th style={{ padding: '12px 20px', fontWeight: 600, color: 'var(--ink-100)', textAlign: 'right' }}>Chamadas</th>
+                                <th style={{ padding: '12px 20px', fontWeight: 600, color: 'var(--ink-100)', textAlign: 'right' }}>Custo</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {custoGeminiPorCampanha.map((c: CustoGeminiPorCampanha, idx: number) => (
+                                <tr
+                                  key={c.nomeCampanha}
+                                  style={{
+                                    borderBottom: idx === custoGeminiPorCampanha.length - 1 ? 'none' : '1px solid var(--paper-200)',
+                                    background: idx % 2 === 0 ? 'var(--paper-0)' : 'var(--paper-50)',
+                                  }}
+                                >
+                                  <td style={{ padding: '12px 20px', fontWeight: 600, color: 'var(--ink-50)' }}>{c.nomeCampanha}</td>
+                                  <td className="tnum" style={{ padding: '12px 20px', textAlign: 'right' }}>{c.chamadas}</td>
+                                  <td className="tnum" style={{ padding: '12px 20px', textAlign: 'right' }}>US$ {c.custoUsd.toFixed(4)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -1759,6 +1850,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
         {currentTab === 'leads' && (
           <div className="page" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
             <LeadsTab />
+          </div>
+        )}
+
+        {currentTab === 'blacklist' && (
+          <div className="page thin-scroll">
+            <div className="page-hero">
+              <div>
+                <h2>Bloqueados <em>e do not call</em></h2>
+                <p className="t-caption" style={{ marginTop: 4 }}>Gerencie leads que solicitaram para não receber mensagens</p>
+              </div>
+            </div>
+            <BlacklistTab />
           </div>
         )}
       </div>
