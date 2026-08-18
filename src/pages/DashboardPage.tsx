@@ -505,42 +505,32 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
         {currentTab === 'campanhas' && (
           <div className="page" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
             <div style={{ flexShrink: 0, padding: '20px 32px 0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-                <div style={{ display: 'flex', borderBottom: '1px solid var(--paper-200)', gap: 20 }}>
-                  <button
-                    type="button"
-                    onClick={() => navigate('campanhas', 'acompanhar')}
-                    style={{
-                      background: 'none', border: 'none',
-                      borderBottom: activeCampanhasTab === 'acompanhar' ? '2px solid var(--navy-500)' : '2px solid transparent',
-                      padding: '8px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 14,
-                      color: activeCampanhasTab === 'acompanhar' ? 'var(--navy-700)' : 'var(--ink-300)',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    Acompanhar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate('campanhas', 'historico')}
-                    style={{
-                      background: 'none', border: 'none',
-                      borderBottom: activeCampanhasTab === 'historico' ? '2px solid var(--navy-500)' : '2px solid transparent',
-                      padding: '8px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 14,
-                      color: activeCampanhasTab === 'historico' ? 'var(--navy-700)' : 'var(--ink-300)',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    Histórico
-                  </button>
-                </div>
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--paper-200)', gap: 20 }}>
                 <button
                   type="button"
-                  className="btn primary"
-                  onClick={() => navigate('campanhas', 'nova')}
-                  style={{ marginBottom: 12 }}
+                  onClick={() => navigate('campanhas', 'acompanhar')}
+                  style={{
+                    background: 'none', border: 'none',
+                    borderBottom: activeCampanhasTab === 'acompanhar' ? '2px solid var(--navy-500)' : '2px solid transparent',
+                    padding: '8px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 14,
+                    color: activeCampanhasTab === 'acompanhar' ? 'var(--navy-700)' : 'var(--ink-300)',
+                    transition: 'all 0.2s ease',
+                  }}
                 >
-                  <Icon name="send" size={14} /> Nova Campanha
+                  Acompanhar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('campanhas', 'historico')}
+                  style={{
+                    background: 'none', border: 'none',
+                    borderBottom: activeCampanhasTab === 'historico' ? '2px solid var(--navy-500)' : '2px solid transparent',
+                    padding: '8px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 14,
+                    color: activeCampanhasTab === 'historico' ? 'var(--navy-700)' : 'var(--ink-300)',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  Histórico
                 </button>
               </div>
             </div>

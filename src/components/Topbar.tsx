@@ -40,11 +40,6 @@ export const Topbar: React.FC<TopbarProps> = ({ syncing = false, actions, sessio
     <header className="topbar">
       {actions}
 
-      <button type="button" className="icon-btn" aria-label="Notificações">
-        <Icon name="bell" size={18} />
-        <span className="ping" />
-      </button>
-
       <div className="profile" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <span className="av" style={{ background: 'var(--navy-500)', color: '#fff' }}>{userInitials}</span>
         <span>
