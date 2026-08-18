@@ -484,7 +484,20 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
     <div className="dash-app">
       <div className="app-header">
         <TopNav active={currentTab} subTab={subTab} onChange={(t, sub) => navigate(t, sub)} />
-        <Topbar syncing={isLoading} session={session} />
+        <Topbar
+          syncing={isLoading}
+          session={session}
+          actions={
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => navigate('campanhas', 'nova')}
+              style={{ padding: '8px 14px' }}
+            >
+              <Icon name="send" size={14} /> Nova Campanha
+            </button>
+          }
+        />
       </div>
 
       <div className="dash-main">
@@ -579,38 +592,50 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <ManageCard
-                icon="file-text"
-                label="Templates"
-                title="Mensagens reutilizáveis"
-                desc="Crie e edite os modelos de mensagem usados em cada disparo."
-                cta="Criar template"
-                onClick={() => {
-                  navigate('gerenciar', 'templates');
-                  setEditingTemplate({ nome: '', tipo: 'prospeccao', status_meta: 'APPROVED', tem_variaveis: true });
-                }}
-              />
-              <ManageCard
-                icon="building"
-                label="Empreendimentos"
-                title="Imóveis & lançamentos"
-                desc="Cadastre os empreendimentos que alimentam o contexto da IA."
-                cta="Criar empreendimento"
-                onClick={() => {
-                  navigate('gerenciar', 'empreendimentos');
-                  setEditingEmpreendimento({ id: '', nome: '', descricao_ia: '', ativo: true });
-                }}
-              />
-              <ManageCard
-                icon="calendar"
-                label="Agendadas"
-                title="Disparos programados"
-                desc="Veja e gerencie campanhas agendadas para envio automático."
-                cta="Ver agendadas"
-                onClick={() => navigate('gerenciar', 'agendadas')}
-              />
-            </div>
+            {(() => {
+              const templatesAprovados = templates.filter((t) => t.status_meta === 'APPROVED').length;
+              const empreendimentosAtivos = empreendimentos.filter((e) => e.ativo).length;
+              const hoje = new Date();
+              const agendadasHoje = scheduledCampaigns.filter((c) => {
+                const d = new Date(c.data_agendamento);
+                return d.getFullYear() === hoje.getFullYear() && d.getMonth() === hoje.getMonth() && d.getDate() === hoje.getDate();
+              }).length;
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <ManageCard
+                    icon="file-text"
+                    label="Templates"
+                    metric={isLoadingTemplates ? '—' : templates.length}
+                    metricNote={isLoadingTemplates ? 'carregando…' : `${templatesAprovados} aprovado${templatesAprovados !== 1 ? 's' : ''} pela Meta`}
+                    cta="Criar template"
+                    onClick={() => {
+                      navigate('gerenciar', 'templates');
+                      setEditingTemplate({ nome: '', tipo: 'prospeccao', status_meta: 'APPROVED', tem_variaveis: true });
+                    }}
+                  />
+                  <ManageCard
+                    icon="building"
+                    label="Empreendimentos"
+                    metric={isLoadingEmpreendimentos ? '—' : empreendimentos.length}
+                    metricNote={isLoadingEmpreendimentos ? 'carregando…' : `${empreendimentosAtivos} ativo${empreendimentosAtivos !== 1 ? 's' : ''}`}
+                    cta="Criar empreendimento"
+                    onClick={() => {
+                      navigate('gerenciar', 'empreendimentos');
+                      setEditingEmpreendimento({ id: '', nome: '', descricao_ia: '', ativo: true });
+                    }}
+                  />
+                  <ManageCard
+                    icon="calendar"
+                    label="Agendadas"
+                    metric={isLoadingScheduled ? '—' : scheduledCampaigns.length}
+                    metricNote={isLoadingScheduled ? 'carregando…' : agendadasHoje > 0 ? `${agendadasHoje} para hoje` : 'nenhuma para hoje'}
+                    cta="Ver agendadas"
+                    onClick={() => navigate('gerenciar', 'agendadas')}
+                  />
+                </div>
+              );
+            })()}
 
             {/* Seletor de Sub-abas — sincronizado com hash */}
             <div style={{ marginTop: 24, display: 'flex', borderBottom: '1px solid var(--paper-200)', gap: 20 }}>
@@ -2060,18 +2085,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
 
 const ManageCard: React.FC<{
   icon: React.ComponentProps<typeof Icon>['name'];
-  label: string; title: string; desc: string; cta: string;
+  label: string; metric: React.ReactNode; metricNote: string; cta: string;
   onClick?: () => void;
-}> = ({ icon, label, title, desc, cta, onClick }) => (
-  <div className="card">
+}> = ({ icon, label, metric, metricNote, cta, onClick }) => (
+  <div className="card" style={{ padding: 18, gap: 8 }}>
     <div className="label">
       <span>{label}</span>
       <span className="ic-circle"><Icon name={icon} size={16} /></span>
     </div>
-    <h3 className="t-serif" style={{ fontSize: 22, margin: '2px 0' }}>{title}</h3>
-    <p className="t-mono" style={{ fontSize: 12, color: 'var(--ink-50)', lineHeight: 1.5, margin: 0 }}>{desc}</p>
-    <button type="button" onClick={onClick} className="btn secondary" style={{ alignSelf: 'flex-start', marginTop: 6 }}>
-      <Icon name="plus" size={14} /> {cta}
+    <div className="num tnum">{metric}</div>
+    <div className="delta"><span className="muted">{metricNote}</span></div>
+    <button type="button" onClick={onClick} className="btn ghost" style={{ alignSelf: 'flex-start', marginTop: 4, padding: '5px 12px', fontSize: 12 }}>
+      <Icon name="plus" size={12} /> {cta}
     </button>
   </div>
 );
