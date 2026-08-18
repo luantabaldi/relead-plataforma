@@ -1,10 +1,31 @@
 import React, { useState } from 'react';
-import { useLeadsList, Lead, MOTIVOS_OBJECAO, TIPOS_ERRO, isSemInteresse, isErro, isRespostaAutomatica } from '../hooks/useLeadsList';
+import { useLeadsList, Lead, MOTIVOS_OBJECAO, TIPOS_ERRO, isSemInteresse, isErro, isRespostaAutomatica, PAGE_SIZE_OPTIONS } from '../hooks/useLeadsList';
+import { useCampaignNames } from '../hooks/useCampaignNames';
 import { Icon } from './Icon';
 import '../styles/leads-tab.css';
 
+/** Janela de páginas com reticências (1 … 4 5 [6] 7 8 … 42) — evita
+ * renderizar dezenas de botões quando a base tem muitas páginas. */
+function getPageNumbers(current: number, total: number): Array<number | 'ellipsis'> {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const keep = new Set<number>([1, total, current - 1, current, current + 1]);
+  const sorted = Array.from(keep).filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+  const result: Array<number | 'ellipsis'> = [];
+  let prev = 0;
+  for (const p of sorted) {
+    if (prev && p - prev > 1) result.push('ellipsis');
+    result.push(p);
+    prev = p;
+  }
+  return result;
+}
+
 export const LeadsTab: React.FC = () => {
-  const { leads, allLeads, isLoading, filters, setFilters, stats, campanhaOptions, empreendimentoOptions, updateLeadClassification, hasMoreData } = useLeadsList();
+  const {
+    leads, isLoading, filters, setFilters, stats, empreendimentoOptions, updateLeadClassification,
+    page, setPage, pageSize, setPageSize, totalCount, totalPages,
+  } = useLeadsList();
+  const { names: campanhaOptions } = useCampaignNames();
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const advancedFilterCount = [
@@ -25,13 +46,15 @@ export const LeadsTab: React.FC = () => {
   const hasActiveFilters =
     filters.searchTerm || filters.status || filters.nomeCampanha || filters.empreendimentoId || filters.dataInicio || filters.dataFim;
 
-  const getStatusColor = (status: string): string => {
-    const s = (status || '').toLowerCase();
-    if (s === 'respondido') return '#EA7317'; // orange
-    if (s === 'reativado' || s === 'interessado') return '#4CAF50'; // green
-    if (s === 'erro' || s === 'erro no disparo') return '#F44336'; // red
-    if (isRespostaAutomatica(status)) return '#9C27B0'; // roxo
-    return '#999'; // gray
+  // Fundo pastel + texto de tom mais escuro da mesma família — nunca mais
+  // um bloco de cor sólida com texto branco (ex.: "Pendente" chapado).
+  const getStatusTone = (status: string): { bg: string; text: string } => {
+    const s = (status || '').toLowerCase().trim();
+    if (s === 'respondido') return { bg: 'var(--amber-50)', text: '#92400E' };
+    if (s === 'reativado' || s === 'interessado') return { bg: 'var(--green-50)', text: '#166534' };
+    if (isErro(status)) return { bg: 'var(--red-50)', text: '#991B1B' };
+    if (isRespostaAutomatica(status)) return { bg: '#F3E8FD', text: '#6B21A8' };
+    return { bg: 'var(--paper-100)', text: 'var(--ink-100)' }; // pendente / sem resposta / demais
   };
 
   const getStatusLabel = (status: string): string => {
@@ -48,7 +71,10 @@ export const LeadsTab: React.FC = () => {
   const parseDateInput = (value: string): Date | null => (value ? new Date(value + 'T00:00:00') : null);
   const toDateInputValue = (date: Date | null): string => (date ? date.toISOString().split('T')[0] : '');
 
-  if (isLoading) {
+  const rangeStart = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = Math.min(totalCount, page * pageSize);
+
+  if (isLoading && leads.length === 0) {
     return (
       <div className="leads-tab-container">
         <div className="loading">Carregando leads...</div>
@@ -58,26 +84,26 @@ export const LeadsTab: React.FC = () => {
 
   return (
     <div className="leads-tab-container">
-      {/* Header */}
+      {/* Header — título solto sobre o fundo off-white da página */}
       <div className="leads-header">
         <div className="header-title">
           <h2>Base de <em>Leads</em></h2>
           <span className="lead-count">
-            {leads.length} de {allLeads.length} leads
+            {totalCount > 0 ? `${rangeStart}–${rangeEnd} de ${totalCount.toLocaleString('pt-BR')} leads` : '0 leads'}
           </span>
         </div>
 
-        {/* Stats Cards */}
+        {/* Stats Cards — brancos puros com sombra sutil, sem borda */}
         <div className="stats-row">
           <div className="stat-card">
             <div className="stat-value">{stats.total}</div>
             <div className="stat-label">Total</div>
           </div>
-          <div className="stat-card highlight">
+          <div className="stat-card">
             <div className="stat-value">{stats.respondidos}</div>
             <div className="stat-label">Respondidos</div>
           </div>
-          <div className="stat-card highlight">
+          <div className="stat-card">
             <div className="stat-value">{stats.ativados}</div>
             <div className="stat-label">Ativados</div>
           </div>
@@ -88,9 +114,10 @@ export const LeadsTab: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter Panel */}
-      <div className="filter-panel">
-        <div className="filter-content">
+      {/* Card único: filtros + tabela + paginação */}
+      <div className="leads-card">
+        <div className="filter-panel">
+          <div className="filter-content">
             <div className="filter-search-row">
               <div className="search-input-wrap">
                 <Icon name="search" size={16} className="search-input-icon" />
@@ -191,102 +218,154 @@ export const LeadsTab: React.FC = () => {
                 Limpar filtros
               </button>
             )}
-        </div>
-      </div>
-
-      {/* Lista de Leads */}
-      <div className="leads-list-container">
-        {hasMoreData && (
-          <div style={{ background: 'var(--amber-50)', border: '1px solid var(--amber-200)', color: 'var(--amber-900)', padding: '12px 16px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Icon name="alert-triangle" size={16} />
-            Exibindo primeiros 1.000 leads. Use filtros para refinar a busca.
           </div>
-        )}
-        {leads.length > 0 ? (
-          <table className="leads-table">
-            <thead>
-              <tr>
-                <th>Telefone</th>
-                <th>Nome</th>
-                <th>Campanha</th>
-                <th>Empreendimento</th>
-                <th>Status</th>
-                <th>Motivo / Erro</th>
-                <th>Enviado em</th>
-                <th>Respondido em</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leads.map((lead: Lead) => (
-                <tr key={lead.id}>
-                  <td className="phone">{lead.telefone}</td>
-                  <td className="name">{lead.nome_lead}</td>
-                  <td className="campaign">{lead.nome_campanha || '-'}</td>
-                  <td className="campaign">{lead.empreendimento_nome || '-'}</td>
-                  <td className="status">
-                    <span
-                      className="status-badge"
-                      style={{ backgroundColor: getStatusColor(lead.status_reativacao) }}
-                    >
-                      {getStatusLabel(lead.status_reativacao)}
-                    </span>
-                  </td>
-                  <td className="classification">
-                    {isSemInteresse(lead.status_reativacao) && (
-                      <select
-                        className="classification-select"
-                        value={lead.motivo_objecao || ''}
-                        onChange={(e) => updateLeadClassification(lead.id, 'motivo_objecao', e.target.value)}
-                      >
-                        <option value="">Classificar objeção…</option>
-                        {MOTIVOS_OBJECAO.map((motivo) => (
-                          <option key={motivo} value={motivo}>{motivo}</option>
-                        ))}
-                      </select>
-                    )}
-                    {isErro(lead.status_reativacao) && (
-                      <select
-                        className="classification-select"
-                        value={lead.tipo_erro || ''}
-                        onChange={(e) => updateLeadClassification(lead.id, 'tipo_erro', e.target.value)}
-                      >
-                        <option value="">Classificar erro…</option>
-                        {TIPOS_ERRO.map((tipo) => (
-                          <option key={tipo} value={tipo}>{tipo}</option>
-                        ))}
-                      </select>
-                    )}
-                    {!isSemInteresse(lead.status_reativacao) && !isErro(lead.status_reativacao) && '-'}
-                  </td>
-                  <td className="date">
-                    {lead.data_envio.toLocaleString('pt-BR', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </td>
-                  <td className="date">
-                    {lead.data_resposta
-                      ? lead.data_resposta.toLocaleString('pt-BR', {
-                          year: 'numeric',
-                          month: '2-digit',
-                          day: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })
-                      : '-'}
-                  </td>
+        </div>
+
+        {/* Lista de Leads */}
+        <div className="leads-list-container">
+          {leads.length > 0 ? (
+            <table className="leads-table">
+              <thead>
+                <tr>
+                  <th>Telefone</th>
+                  <th>Nome</th>
+                  <th>Campanha</th>
+                  <th>Empreendimento</th>
+                  <th>Status</th>
+                  <th>Motivo / Erro</th>
+                  <th>Enviado em</th>
+                  <th>Respondido em</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="empty-state">
-            <Icon name="inbox" size={32} />
-            <p>Nenhum lead encontrado</p>
-            {hasActiveFilters && <p className="text-muted">Tente ajustar os filtros</p>}
+              </thead>
+              <tbody>
+                {leads.map((lead: Lead) => {
+                  const tone = getStatusTone(lead.status_reativacao);
+                  return (
+                  <tr key={lead.id}>
+                    <td className="phone">{lead.telefone}</td>
+                    <td className="name">{lead.nome_lead}</td>
+                    <td className="campaign">{lead.nome_campanha || '-'}</td>
+                    <td className="campaign">{lead.empreendimento_nome || '-'}</td>
+                    <td className="status">
+                      <span
+                        className="status-badge"
+                        style={{ backgroundColor: tone.bg, color: tone.text }}
+                      >
+                        {getStatusLabel(lead.status_reativacao)}
+                      </span>
+                    </td>
+                    <td className="classification">
+                      {isSemInteresse(lead.status_reativacao) && (
+                        <select
+                          className="classification-select"
+                          value={lead.motivo_objecao || ''}
+                          onChange={(e) => updateLeadClassification(lead.id, 'motivo_objecao', e.target.value)}
+                        >
+                          <option value="">Classificar objeção…</option>
+                          {MOTIVOS_OBJECAO.map((motivo) => (
+                            <option key={motivo} value={motivo}>{motivo}</option>
+                          ))}
+                        </select>
+                      )}
+                      {isErro(lead.status_reativacao) && (
+                        <select
+                          className="classification-select"
+                          value={lead.tipo_erro || ''}
+                          onChange={(e) => updateLeadClassification(lead.id, 'tipo_erro', e.target.value)}
+                        >
+                          <option value="">Classificar erro…</option>
+                          {TIPOS_ERRO.map((tipo) => (
+                            <option key={tipo} value={tipo}>{tipo}</option>
+                          ))}
+                        </select>
+                      )}
+                      {!isSemInteresse(lead.status_reativacao) && !isErro(lead.status_reativacao) && '-'}
+                    </td>
+                    <td className="date">
+                      {lead.data_envio.toLocaleString('pt-BR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </td>
+                    <td className="date">
+                      {lead.data_resposta
+                        ? lead.data_resposta.toLocaleString('pt-BR', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '-'}
+                    </td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <div className="empty-state">
+              <Icon name="inbox" size={32} />
+              <p>Nenhum lead encontrado</p>
+              {hasActiveFilters && <p className="text-muted">Tente ajustar os filtros</p>}
+            </div>
+          )}
+        </div>
+
+        {/* Paginação — navega a base inteira, não só os primeiros 1.000 */}
+        {totalCount > 0 && (
+          <div className="leads-pagination">
+            <span className="pagination-range">
+              {rangeStart}–{rangeEnd} de {totalCount.toLocaleString('pt-BR')}
+            </span>
+
+            <div className="pagination-controls">
+              <button
+                type="button"
+                className="pagination-btn"
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page <= 1}
+              >
+                <Icon name="chevron-left" size={14} /> Anterior
+              </button>
+
+              {getPageNumbers(page, totalPages).map((p, idx) =>
+                p === 'ellipsis' ? (
+                  <span key={`e-${idx}`} className="pagination-ellipsis">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    type="button"
+                    className={`pagination-page${p === page ? ' active' : ''}`}
+                    onClick={() => setPage(p)}
+                    aria-current={p === page ? 'page' : undefined}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+
+              <button
+                type="button"
+                className="pagination-btn"
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                disabled={page >= totalPages}
+              >
+                Próxima <Icon name="chevron-right" size={14} />
+              </button>
+            </div>
+
+            <label className="pagination-size">
+              Linhas por página:
+              <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </label>
           </div>
         )}
       </div>
