@@ -17,6 +17,7 @@ import { useActiveDispatches } from '../hooks/useActiveDispatches';
 import { usePausedDispatches } from '../hooks/usePausedDispatches';
 import { useMetaKpis, NumeroSaude, CustoPorDia, TemplateKpi } from '../hooks/useMetaKpis';
 import { useGeminiKpis, CustoGeminiPorCampanha } from '../hooks/useGeminiKpis';
+import { useCustoPeriodo } from '../hooks/useCustoPeriodo';
 import { friendlyError } from '../lib/friendlyError';
 import { FilterOptions, CampaignType } from '../types';
 import { supabase } from '../lib/supabase';
@@ -44,6 +45,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
   });
 
   const [periodOption, setPeriodOption] = useState<'7d' | '30d' | '90d' | 'custom'>('30d');
+
+  // Custo (Meta) do período da Performance — usa o mesmo `filters` acima,
+  // então acompanha o seletor de período dessa tela automaticamente.
+  const { custoTotalUsd: custoPerformanceUsd } = useCustoPeriodo({
+    dataInicio: filters.dataInicio,
+    dataFim: filters.dataFim,
+  });
 
   // Período próprio da aba KPIs — deliberadamente separado de `filters`/`periodOption`
   // acima, pois aquele state alimenta `useConversations` (aba Acompanhar); reaproveitá-lo
@@ -437,11 +445,40 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
       ['respondido', 'interessado', 'sem_interesse'].includes(c.dispatch.status)
     ).length;
     const interessados = conversations.filter((c) => c.dispatch.status === 'interessado').length;
+    const erros = conversations.filter((c) => c.dispatch.status === 'erro').length;
     const taxaResp = total ? Math.round((respondidos / total) * 100) : 0;
     const taxaInt = respondidos ? Math.round((interessados / respondidos) * 100) : 0;
     const taxaIntDisparos = total ? Math.round((interessados / total) * 100) : 0;
-    return { total, respondidos, interessados, taxaResp, taxaInt, taxaIntDisparos };
+    const taxaErro = total ? Math.round((erros / total) * 100) : 0;
+
+    const respTimesMs = conversations
+      .map((c) => {
+        const resp = c.dispatch.timestamp_resposta;
+        if (!resp) return null;
+        const ms = new Date(resp).getTime() - new Date(c.dispatch.timestamp_envio).getTime();
+        return ms >= 0 ? ms : null;
+      })
+      .filter((ms): ms is number => ms !== null);
+    const avgRespMs = respTimesMs.length
+      ? respTimesMs.reduce((sum, ms) => sum + ms, 0) / respTimesMs.length
+      : 0;
+
+    return { total, respondidos, interessados, erros, taxaResp, taxaInt, taxaIntDisparos, taxaErro, avgRespMs };
   }, [conversations]);
+
+  const custoPorInteressado = metrics.interessados > 0 ? custoPerformanceUsd / metrics.interessados : 0;
+
+  const formatDuration = (ms: number): string => {
+    if (ms <= 0) return '—';
+    const minutes = Math.round(ms / 60000);
+    if (minutes < 60) return `${minutes}min`;
+    const hours = Math.floor(minutes / 60);
+    const remMin = minutes % 60;
+    if (hours < 24) return remMin > 0 ? `${hours}h ${remMin}min` : `${hours}h`;
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+  };
 
   return (
     <div className="dash-app">
@@ -1595,6 +1632,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                     note={`${metrics.taxaInt}% dos que responderam`} tone="dark" />
                   <StatCard label="Taxa de interessados" value={`${metrics.taxaIntDisparos}%`} icon="trending-up"
                     note="dos leads disparados" tone="green" />
+                  <StatCard label="Taxa de erro" value={`${metrics.taxaErro}%`} icon="alert-triangle"
+                    note={`${metrics.erros} de ${metrics.total} disparos`} tone="white" />
+                  <StatCard label="Tempo médio de resposta" value={formatDuration(metrics.avgRespMs)} icon="clock"
+                    note="entre disparo e resposta do lead" tone="soft" />
+                  <StatCard label="Custo por interessado" value={metrics.interessados > 0 ? `US$ ${custoPorInteressado.toFixed(2)}` : '—'} icon="wallet"
+                    note="custo Meta ÷ leads interessados" tone="dark" />
                 </div>
 
                 {conversations.length === 0 && (
@@ -2331,11 +2374,23 @@ const FunnelChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
   const intPercent = disparados ? Math.round((interessados / disparados) * 100) : 0;
   const relIntPercent = responderam ? Math.round((interessados / responderam) * 100) : 0;
 
-  const steps = [
-    { label: 'Disparados', count: disparados, percent: 100, color: 'var(--navy-600)' },
-    { label: 'Responderam', count: responderam, percent: respPercent, color: 'var(--navy-400)', subtitle: `${respPercent}% dos disparados` },
-    { label: 'Interessados', count: interessados, percent: intPercent, color: 'var(--green-500)', subtitle: `${relIntPercent}% dos que responderam` },
+  // Larguras visuais (com piso mínimo pra continuar legível) — sempre não-crescentes,
+  // pra manter o formato de funil, mas os números exibidos usam o percentual real.
+  const FLOOR = 16;
+  const widthResp = disparados ? Math.max(FLOOR, Math.min(100, respPercent)) : 100;
+  const widthInt = disparados ? Math.max(FLOOR - 4, Math.min(widthResp, intPercent)) : widthResp;
+
+  const bands = [
+    { label: 'Disparados', count: disparados, percentLabel: '100%', top: 100, bottom: 100, color: 'var(--navy-600)' },
+    { label: 'Responderam', count: responderam, percentLabel: `${respPercent}% dos disparados`, top: 100, bottom: widthResp, color: 'var(--navy-400)' },
+    { label: 'Interessados', count: interessados, percentLabel: `${relIntPercent}% dos que responderam`, top: widthResp, bottom: widthInt, color: 'var(--green-500)' },
   ];
+
+  const clipPath = (top: number, bottom: number) => {
+    const topInset = (100 - top) / 2;
+    const bottomInset = (100 - bottom) / 2;
+    return `polygon(${topInset}% 0%, ${100 - topInset}% 0%, ${100 - bottomInset}% 100%, ${bottomInset}% 100%)`;
+  };
 
   return (
     <div className="card" style={{ padding: 20, flex: 1, minWidth: 280, minHeight: 280, display: 'flex', flexDirection: 'column' }}>
@@ -2343,40 +2398,36 @@ const FunnelChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
         Funil de conversão
       </h4>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 8, flex: 1, justifyContent: 'center' }}>
-        {steps.map((step, idx) => (
-          <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+      {disparados === 0 ? (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-100)', fontSize: 13 }}>
+          Sem disparos no período selecionado
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'center' }}>
+          {bands.map((band, idx) => (
             <div
+              key={idx}
               style={{
-                width: `${Math.max(35, step.percent)}%`,
-                padding: '10px 16px',
-                background: step.color,
-                color: '#fff',
-                borderRadius: 10,
-                textAlign: 'center',
-                boxShadow: '0 2px 8px rgba(15, 23, 42, 0.08)',
-                transition: 'all 0.5s ease',
+                position: 'relative',
+                height: 66,
+                background: band.color,
+                clipPath: clipPath(band.top, band.bottom),
+                borderTop: idx > 0 ? '1px solid rgba(255,255,255,0.35)' : undefined,
                 display: 'flex',
-                justifyContent: 'space-between',
                 alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'clip-path 0.5s ease',
               }}
             >
-              <span style={{ fontWeight: 600, fontSize: 12 }}>{step.label}</span>
-              <span className="t-mono" style={{ fontSize: 12, fontWeight: 700 }}>
-                {step.count} <span style={{ fontSize: 9, opacity: 0.8 }}>({step.percent}%)</span>
-              </span>
-            </div>
-            {step.subtitle && (
-              <div className="t-mono" style={{ fontSize: 10, color: 'var(--ink-50)', marginTop: 2, textAlign: 'center' }}>
-                {step.subtitle}
+              <div style={{ textAlign: 'center', color: '#fff' }}>
+                <div style={{ fontWeight: 600, fontSize: 12 }}>{band.label}</div>
+                <div className="t-mono" style={{ fontSize: 13, fontWeight: 700 }}>{band.count}</div>
+                <div className="t-mono" style={{ fontSize: 9, opacity: 0.85 }}>{band.percentLabel}</div>
               </div>
-            )}
-            {idx < steps.length - 1 && (
-              <div style={{ height: 16, width: 2, background: 'var(--paper-200)', margin: '4px 0' }} />
-            )}
-          </div>
-        ))}
-      </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
