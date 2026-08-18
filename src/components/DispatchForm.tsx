@@ -20,6 +20,8 @@ const TEMPLATES = [
   { id: 'template-3', name: 'Prospecção executiva' },
 ];
 
+const STEP_LABELS = ['Configuração', 'Mensagem', 'Leads', 'Revisão'];
+
 export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -46,7 +48,8 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
   const [isLoadingEmpreendimentos, setIsLoadingEmpreendimentos] = useState(true);
 
   const [templates, setTemplates] = useState<Array<{ id: string; nome: string; tipo?: string; status_meta?: string; componentes?: any[] }>>([]);
-  const [showReview, setShowReview] = useState(false);
+  const [step, setStep] = useState(1);
+  const [maxStepReached, setMaxStepReached] = useState(1);
   const [empreendimentosList, setEmpreendimentosList] = useState<Array<{ id: string; nome: string; descricao_ia: string; ativo: boolean }>>([]);
   const [selectedEmpreendimentoId, setSelectedEmpreendimentoId] = useState('');
 
@@ -233,33 +236,55 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
     }
   };
 
-  const handleReviewSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const isTemplateApproved = (t: { status_meta?: string }) => !t.status_meta || t.status_meta === 'APPROVED';
+  const templateNeedsImage = (t?: { componentes?: any[] }) =>
+    !!t?.componentes?.some((c) => c.type === 'HEADER' && c.format === 'IMAGE');
+  const selectedTemplateForForm = templates.find((t) => t.id === formData.templateId);
+  const needsImage = templateNeedsImage(selectedTemplateForForm);
+
+  // Valida cumulativamente o que é preciso pra alcançar `targetStep` — cada
+  // passo checa as exigências de todos os passos anteriores a ele.
+  const getBlockingError = (targetStep: number): string | null => {
+    if (targetStep >= 2 && !formData.campaignName.trim()) {
+      return 'Nome da campanha é obrigatório.';
+    }
+    if (targetStep >= 3) {
+      if (!formData.templateId) return 'Selecione um template de mensagem.';
+      const selectedTemplate = templates.find((t) => t.id === formData.templateId);
+      if (selectedTemplate && !isTemplateApproved(selectedTemplate)) {
+        return 'O template selecionado ainda não foi aprovado pela Meta. Escolha outro ou aguarde a aprovação.';
+      }
+      if (templateNeedsImage(selectedTemplate) && !formData.imagemUrl.trim()) {
+        return 'Este template tem imagem no cabeçalho. Faça o upload da imagem antes de continuar.';
+      }
+    }
+    if (targetStep >= 4 && leads.length === 0) {
+      return 'Carregue um CSV com leads (nome, telefone).';
+    }
+    return null;
+  };
+
+  const goNext = () => {
+    const target = Math.min(4, step + 1);
+    const err = getBlockingError(target);
+    if (err) {
+      setStatus({ type: 'err', text: err });
+      return;
+    }
     setStatus(null);
+    setStep(target);
+    setMaxStepReached((m) => Math.max(m, target));
+  };
 
-    if (!formData.campaignName.trim()) {
-      setStatus({ type: 'err', text: 'Nome da campanha é obrigatório.' });
-      return;
-    }
-    if (!formData.templateId) {
-      setStatus({ type: 'err', text: 'Selecione um template de mensagem.' });
-      return;
-    }
-    const selectedTemplate = templates.find((t) => t.id === formData.templateId);
-    if (selectedTemplate && !isTemplateApproved(selectedTemplate)) {
-      setStatus({ type: 'err', text: 'O template selecionado ainda não foi aprovado pela Meta. Escolha outro ou aguarde a aprovação.' });
-      return;
-    }
-    if (templateNeedsImage(selectedTemplate) && !formData.imagemUrl.trim()) {
-      setStatus({ type: 'err', text: 'Este template tem imagem no cabeçalho. Faça o upload da imagem antes de continuar.' });
-      return;
-    }
-    if (leads.length === 0) {
-      setStatus({ type: 'err', text: 'Carregue um CSV com leads (nome, telefone).' });
-      return;
-    }
+  const goBack = () => {
+    setStatus(null);
+    setStep((s) => Math.max(1, s - 1));
+  };
 
-    setShowReview(true);
+  const jumpToStep = (n: number) => {
+    if (n > maxStepReached) return;
+    setStatus(null);
+    setStep(n);
   };
 
   const executeDispatch = async () => {
@@ -421,7 +446,8 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
       });
       setLeads([]);
       setFileName('');
-      setShowReview(false);
+      setStep(1);
+      setMaxStepReached(1);
       setImageUploadError('');
       if (fileInputRef.current) fileInputRef.current.value = '';
       if (imageInputRef.current) imageInputRef.current.value = '';
@@ -435,12 +461,6 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
   };
 
   const set = (patch: Partial<typeof formData>) => setFormData({ ...formData, ...patch });
-
-  const isTemplateApproved = (t: { status_meta?: string }) => !t.status_meta || t.status_meta === 'APPROVED';
-  const templateNeedsImage = (t?: { componentes?: any[] }) =>
-    !!t?.componentes?.some((c) => c.type === 'HEADER' && c.format === 'IMAGE');
-  const selectedTemplateForForm = templates.find((t) => t.id === formData.templateId);
-  const needsImage = templateNeedsImage(selectedTemplateForForm);
 
   if (progress.active) {
     const pct = progress.total > 0 ? Math.round(((progress.total - progress.pending) / progress.total) * 100) : 0;
@@ -458,7 +478,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
             to { opacity: 1; transform: translateX(0); }
           }
         `}</style>
-        
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div className="t-mono" style={{ color: 'var(--navy-700)', fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -585,369 +605,427 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
     );
   }
 
-  if (showReview) {
-    const reviewTemplate = templates.find((t) => t.id === formData.templateId);
-    const approved = reviewTemplate ? isTemplateApproved(reviewTemplate) : false;
-
-    return (
-      <div className="card" style={{ maxWidth: 640, padding: 28, gap: 22 }}>
-        <div className="label">
-          <span>Revisar disparo</span>
-          <span className="ic-circle"><Icon name="eye" size={16} /></span>
-        </div>
-
-        <p className="hint" style={{ margin: 0 }}>
-          Confira os dados antes de enviar. Depois de confirmado, as mensagens começam a sair para os leads abaixo.
-        </p>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <ReviewRow label="Campanha" value={formData.campaignName} />
-          <ReviewRow label="Tipo" value={formData.campaignType === 'reativacao' ? 'Reativação' : 'Prospecção'} />
-          <ReviewRow
-            label="Template"
-            value={
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {formData.templateName || '—'}
-                <span className={`chip ${approved ? 'success' : 'danger'}`}>
-                  <span className="dot" />
-                  {approved ? 'Aprovado' : 'Não aprovado'}
-                </span>
-              </span>
-            }
-          />
-          {formData.empreendimentoNome && (
-            <ReviewRow label="Empreendimento" value={formData.empreendimentoNome} />
-          )}
-          {formData.imagemUrl && (
-            <ReviewRow label="Imagem" value={formData.imagemUrl} />
-          )}
-          <ReviewRow label="Destinatários" value={`${leads.length} leads`} />
-        </div>
-
-        {!approved && (
-          <div className="banner err">
-            <Icon name="alert-triangle" size={18} />
-            Este template não está aprovado pela Meta. Corrija antes de continuar — enviar um template não aprovado pode banir o número de WhatsApp.
-          </div>
-        )}
-
-        <div
-          className="thin-scroll"
-          style={{
-            background: 'var(--paper-100)', border: '1px solid var(--paper-200)',
-            borderRadius: 14, padding: 14, maxHeight: 180, overflowY: 'auto',
-          }}
-        >
-          <div className="t-label" style={{ marginBottom: 10 }}>Primeiros destinatários</div>
-          {leads.slice(0, 6).map((lead, i) => (
-            <div
-              key={i}
-              style={{
-                display: 'flex', justifyContent: 'space-between', gap: 12,
-                padding: '6px 0', borderTop: i ? '1px solid var(--paper-200)' : 'none',
-              }}
-            >
-              <span style={{ color: 'var(--ink-200)' }}>{lead.nome || '—'}</span>
-              <span className="t-mono tnum" style={{ color: 'var(--ink-50)', fontSize: 12 }}>{lead.telefone}</span>
-            </div>
-          ))}
-          {leads.length > 6 && (
-            <div className="t-mono" style={{ color: 'var(--navy-700)', fontSize: 11, marginTop: 8 }}>
-              + {leads.length - 6} adicionais
-            </div>
-          )}
-        </div>
-
-        {status && (
-          <div className={`banner ${status.type === 'ok' ? 'ok' : 'err'}`}>
-            <Icon name={status.type === 'ok' ? 'check-circle' : 'alert-triangle'} size={18} />
-            {status.text}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button type="button" className="btn secondary" style={{ flex: 1 }} onClick={() => setShowReview(false)} disabled={isLoading}>
-            <Icon name="chevron-left" size={16} /> Voltar e editar
-          </button>
-          <button
-            type="button"
-            className="btn primary"
-            style={{ flex: 2 }}
-            disabled={isLoading || !approved}
-            onClick={executeDispatch}
-          >
-            {isLoading ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
-                <span className="spinner" style={{ borderColor: 'rgba(255, 255, 255, 0.3)', borderLeftColor: '#fff', width: 14, height: 14, borderWidth: 2 }} />
-                Disparando…
-              </span>
-            ) : (
-              <>
-                <Icon name="send" size={16} />
-                Confirmar disparo para {leads.length} leads
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const headerByStep: Record<number, { label: string; icon: React.ComponentProps<typeof Icon>['name'] }> = {
+    1: { label: 'Configuração da campanha', icon: 'send' },
+    2: { label: 'Mensagem da campanha', icon: 'message-circle' },
+    3: { label: 'Base de leads', icon: 'upload' },
+    4: { label: 'Revisar disparo', icon: 'eye' },
+  };
 
   return (
-    <div className="card" style={{ padding: 28, gap: 20 }}>
+    <div className="card" style={{ maxWidth: 640, padding: 28, gap: 22 }}>
       <div className="label">
-        <span>Novo disparo</span>
-        <span className="ic-circle"><Icon name="send" size={16} /></span>
+        <span>{headerByStep[step].label}</span>
+        <span className="ic-circle"><Icon name={headerByStep[step].icon} size={16} /></span>
       </div>
 
-      <form onSubmit={handleReviewSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-5" style={{ alignItems: 'start' }}>
-        {/* ── Coluna 1: dados da campanha ── */}
+      {/* Indicador de passos */}
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        {STEP_LABELS.map((label, idx) => {
+          const n = idx + 1;
+          const done = n < step;
+          const active = n === step;
+          const reachable = n <= maxStepReached;
+          return (
+            <React.Fragment key={n}>
+              <button
+                type="button"
+                onClick={() => jumpToStep(n)}
+                disabled={!reachable}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none',
+                  cursor: reachable ? 'pointer' : 'default', padding: '4px 2px', flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 700, flexShrink: 0,
+                    background: done ? 'var(--green-500)' : active ? 'var(--navy-600)' : 'var(--paper-200)',
+                    color: done || active ? '#fff' : 'var(--ink-200)',
+                  }}
+                >
+                  {done ? <Icon name="check" size={11} /> : n}
+                </span>
+                <span
+                  className="t-mono"
+                  style={{ fontSize: 11, fontWeight: active ? 700 : 500, color: active ? 'var(--navy-700)' : 'var(--ink-200)', whiteSpace: 'nowrap' }}
+                >
+                  {label}
+                </span>
+              </button>
+              {n < STEP_LABELS.length && <div style={{ flex: 1, height: 1, background: 'var(--paper-200)', margin: '0 8px' }} />}
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      {/* ── Passo 1: Configuração ── */}
+      {step === 1 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-        {/* Nome + Tipo */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="field">
+              <label htmlFor="campaignNameInput">Nome da campanha *</label>
+              <input
+                id="campaignNameInput"
+                name="campaignName"
+                className="input"
+                type="text"
+                value={formData.campaignName}
+                onChange={(e) => set({ campaignName: e.target.value })}
+                placeholder="Junho 2026"
+                autoComplete="off"
+                required
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="campaignTypeSelect">Tipo de campanha *</label>
+              <select
+                id="campaignTypeSelect"
+                name="campaignType"
+                className="input"
+                value={formData.campaignType}
+                onChange={(e) => set({ campaignType: e.target.value as 'reativacao' | 'prospeccao', templateId: '', templateName: '' })}
+                required
+              >
+                <option value="prospeccao">Prospecção</option>
+                <option value="reativacao">Reativação</option>
+              </select>
+            </div>
+          </div>
+
           <div className="field">
-            <label htmlFor="campaignNameInput">Nome da campanha *</label>
-            <input
-              id="campaignNameInput"
-              name="campaignName"
+            <label htmlFor="empreendimentoSelect">Empreendimento cadastrado</label>
+            <select
+              id="empreendimentoSelect"
+              name="selectedEmpreendimentoId"
               className="input"
-              type="text"
-              value={formData.campaignName}
-              onChange={(e) => set({ campaignName: e.target.value })}
-              placeholder="Junho 2026"
-              autoComplete="off"
-              required
+              value={selectedEmpreendimentoId}
+              onChange={handleEmpreendimentoChange}
+            >
+              {isLoadingEmpreendimentos ? (
+                <option value="">Carregando empreendimentos…</option>
+              ) : empreendimentosList.length === 0 ? (
+                <option value="">Nenhum empreendimento cadastrado</option>
+              ) : (
+                <option value="">-- Digitar Manualmente ou Escolher Empreendimento --</option>
+              )}
+              {!isLoadingEmpreendimentos && empreendimentosList.map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.nome} (ID: {emp.id})
+                </option>
+              ))}
+            </select>
+            <span className="hint">Opcional. Selecione para preencher os dados do empreendimento e a observação para a IA automaticamente.</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="field">
+              <label htmlFor="empreendimentoIdInput">ID do empreendimento</label>
+              <input
+                id="empreendimentoIdInput"
+                name="empreendimentoId"
+                className="input tnum"
+                type="text"
+                value={formData.empreendimentoId}
+                onChange={(e) => set({ empreendimentoId: e.target.value })}
+                placeholder="152"
+                autoComplete="off"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="empreendimentoNomeInput">Nome do empreendimento</label>
+              <input
+                id="empreendimentoNomeInput"
+                name="empreendimentoNome"
+                className="input"
+                type="text"
+                value={formData.empreendimentoNome}
+                onChange={(e) => set({ empreendimentoNome: e.target.value })}
+                placeholder="Lee Dama Tower"
+                autoComplete="off"
+              />
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="observacaoTextarea">Observação para a IA</label>
+            <textarea
+              id="observacaoTextarea"
+              name="observacao"
+              className="input"
+              value={formData.observacao}
+              onChange={(e) => set({ observacao: e.target.value })}
+              placeholder="Studios e apto 1 dorm para moradia e investimento, 800 m do mar."
+              rows={3}
             />
           </div>
 
-          <div className="field">
-            <label htmlFor="campaignTypeSelect">Tipo de campanha *</label>
-            <select
-              id="campaignTypeSelect"
-              name="campaignType"
-              className="input"
-              value={formData.campaignType}
-              onChange={(e) => set({ campaignType: e.target.value as 'reativacao' | 'prospeccao', templateId: '', templateName: '' })}
-              required
-            >
-              <option value="prospeccao">Prospecção</option>
-              <option value="reativacao">Reativação</option>
-            </select>
+          {status && (
+            <div className={`banner ${status.type === 'ok' ? 'ok' : 'err'}`}>
+              <Icon name={status.type === 'ok' ? 'check-circle' : 'alert-triangle'} size={18} />
+              {status.text}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button type="button" className="btn primary" onClick={goNext}>
+              Continuar <Icon name="chevron-right" size={16} />
+            </button>
           </div>
         </div>
+      )}
 
-        {/* Template */}
-        <div className="field">
-          <label htmlFor="templateSelect">Template de mensagem *</label>
-          <select
-            id="templateSelect"
-            name="templateId"
-            className="input"
-            value={formData.templateId}
-            onChange={(e) => {
-              const template = templates.find((t) => t.id === e.target.value);
-              set({ templateId: e.target.value, templateName: template?.nome || '' });
-            }}
-            required
-          >
-            {isLoadingTemplates ? (
-              <option value="">Carregando templates…</option>
-            ) : templates.length === 0 ? (
-              <option value="">Nenhum template cadastrado</option>
-            ) : (
-              <option value="">Selecione um template</option>
-            )}
-            {!isLoadingTemplates && templates
-              .filter((t) => !t.tipo || t.tipo === formData.campaignType || t.tipo === 'nao_classificado')
-              .map((t) => {
-                const approved = isTemplateApproved(t);
-                const unclassified = t.tipo === 'nao_classificado';
-                let suffix = '';
-                if (!approved) {
-                  suffix = ` — ${t.status_meta === 'REJECTED' ? 'rejeitado pela Meta' : 'aguardando aprovação'}`;
-                } else if (unclassified) {
-                  suffix = ' — classifique o tipo em Gerenciar';
-                }
-                return (
-                  <option key={t.id} value={t.id} disabled={!approved || unclassified}>
-                    {t.nome}{suffix}
-                  </option>
-                );
-              })}
-          </select>
-          {selectedTemplateForForm && !isTemplateApproved(selectedTemplateForForm) ? (
-            <span className="hint" style={{ color: 'var(--red-500)' }}>
-              Este template ainda não foi aprovado pela Meta e não pode ser usado em um disparo real.
-            </span>
-          ) : (
-            <span className="hint">Templates novos sincronizados da Meta aparecem aqui após classificados na aba Gerenciar.</span>
-          )}
-        </div>
-
-        {/* Upload da imagem (apenas para templates com header de imagem) */}
-        {needsImage && (
+      {/* ── Passo 2: Mensagem / Template ── */}
+      {step === 2 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div className="field">
-            <label htmlFor="imagemFileInput">Imagem do template *</label>
+            <label htmlFor="templateSelect">Template de mensagem *</label>
+            <select
+              id="templateSelect"
+              name="templateId"
+              className="input"
+              value={formData.templateId}
+              onChange={(e) => {
+                const template = templates.find((t) => t.id === e.target.value);
+                set({ templateId: e.target.value, templateName: template?.nome || '' });
+              }}
+              required
+            >
+              {isLoadingTemplates ? (
+                <option value="">Carregando templates…</option>
+              ) : templates.length === 0 ? (
+                <option value="">Nenhum template cadastrado</option>
+              ) : (
+                <option value="">Selecione um template</option>
+              )}
+              {!isLoadingTemplates && templates
+                .filter((t) => !t.tipo || t.tipo === formData.campaignType || t.tipo === 'nao_classificado')
+                .map((t) => {
+                  const approved = isTemplateApproved(t);
+                  const unclassified = t.tipo === 'nao_classificado';
+                  let suffix = '';
+                  if (!approved) {
+                    suffix = ` — ${t.status_meta === 'REJECTED' ? 'rejeitado pela Meta' : 'aguardando aprovação'}`;
+                  } else if (unclassified) {
+                    suffix = ' — classifique o tipo em Gerenciar';
+                  }
+                  return (
+                    <option key={t.id} value={t.id} disabled={!approved || unclassified}>
+                      {t.nome}{suffix}
+                    </option>
+                  );
+                })}
+            </select>
+            {selectedTemplateForForm && !isTemplateApproved(selectedTemplateForForm) ? (
+              <span className="hint" style={{ color: 'var(--red-500)' }}>
+                Este template ainda não foi aprovado pela Meta e não pode ser usado em um disparo real.
+              </span>
+            ) : (
+              <span className="hint">Templates novos sincronizados da Meta aparecem aqui após classificados na aba Gerenciar.</span>
+            )}
+          </div>
+
+          {needsImage && (
+            <div className="field">
+              <label htmlFor="imagemFileInput">Imagem do template *</label>
+              <input
+                id="imagemFileInput"
+                name="imagemFile"
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                autoComplete="off"
+                style={{ display: 'none' }}
+              />
+              <button
+                type="button"
+                onClick={() => imageInputRef.current?.click()}
+                className="btn secondary"
+                style={{ alignSelf: 'flex-start' }}
+                disabled={isUploadingImage}
+              >
+                {isUploadingImage ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                    Enviando…
+                  </span>
+                ) : (
+                  <>
+                    <Icon name="upload" size={16} />
+                    {formData.imagemUrl ? 'Trocar imagem' : 'Selecionar imagem'}
+                  </>
+                )}
+              </button>
+
+              {formData.imagemUrl && !isUploadingImage && (
+                <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <img
+                    src={formData.imagemUrl}
+                    alt="Pré-visualização"
+                    style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--paper-200)' }}
+                  />
+                  <span className="hint" style={{ margin: 0, wordBreak: 'break-all' }}>{formData.imagemUrl}</span>
+                </div>
+              )}
+
+              {imageUploadError && (
+                <span className="hint" style={{ color: 'var(--red-500)' }}>{imageUploadError}</span>
+              )}
+
+              <span className="hint">
+                Este template tem imagem no cabeçalho. O upload gera automaticamente um link público (JPG, PNG ou WEBP, até 5 MB).
+              </span>
+            </div>
+          )}
+
+          {status && (
+            <div className={`banner ${status.type === 'ok' ? 'ok' : 'err'}`}>
+              <Icon name={status.type === 'ok' ? 'check-circle' : 'alert-triangle'} size={18} />
+              {status.text}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <button type="button" className="btn secondary" onClick={goBack}>
+              <Icon name="chevron-left" size={16} /> Voltar
+            </button>
+            <button type="button" className="btn primary" onClick={goNext}>
+              Continuar <Icon name="chevron-right" size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Passo 3: Base de leads (upload) ── */}
+      {step === 3 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div className="field">
+            <label htmlFor="csvFileInput">Leads (CSV) *</label>
             <input
-              id="imagemFileInput"
-              name="imagemFile"
-              ref={imageInputRef}
+              id="csvFileInput"
+              name="leadsCsv"
+              ref={fileInputRef}
               type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
+              accept=".csv"
+              onChange={handleCSVUpload}
               autoComplete="off"
               style={{ display: 'none' }}
             />
             <button
               type="button"
-              onClick={() => imageInputRef.current?.click()}
+              onClick={() => fileInputRef.current?.click()}
               className="btn secondary"
               style={{ alignSelf: 'flex-start' }}
-              disabled={isUploadingImage}
             >
-              {isUploadingImage ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
-                  Enviando…
-                </span>
-              ) : (
-                <>
-                  <Icon name="upload" size={16} />
-                  {formData.imagemUrl ? 'Trocar imagem' : 'Selecionar imagem'}
-                </>
-              )}
+              <Icon name="upload" size={16} />
+              {fileName || 'Selecionar arquivo'}
             </button>
+            <span className="hint">Colunas: nome, telefone. A primeira linha (cabeçalho) é ignorada.</span>
 
-            {formData.imagemUrl && !isUploadingImage && (
-              <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <img
-                  src={formData.imagemUrl}
-                  alt="Pré-visualização"
-                  style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--paper-200)' }}
-                />
-                <span className="hint" style={{ margin: 0, wordBreak: 'break-all' }}>{formData.imagemUrl}</span>
+            {leads.length > 0 && (
+              <div
+                className="thin-scroll"
+                style={{
+                  marginTop: 4, background: 'var(--paper-100)', border: '1px solid var(--paper-200)',
+                  borderRadius: 14, padding: 14, maxHeight: 260, overflowY: 'auto',
+                }}
+              >
+                <div className="t-label" style={{ marginBottom: 10 }}>
+                  {leads.length} leads carregados
+                </div>
+                {leads.slice(0, 6).map((lead, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex', justifyContent: 'space-between', gap: 12,
+                      padding: '6px 0', borderTop: i ? '1px solid var(--paper-200)' : 'none',
+                    }}
+                  >
+                    <span style={{ color: 'var(--ink-200)' }}>{lead.nome || '—'}</span>
+                    <span className="t-mono tnum" style={{ color: 'var(--ink-50)', fontSize: 12 }}>{lead.telefone}</span>
+                  </div>
+                ))}
+                {leads.length > 6 && (
+                  <div className="t-mono" style={{ color: 'var(--navy-700)', fontSize: 11, marginTop: 8 }}>
+                    + {leads.length - 6} adicionais
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {status && (
+            <div className={`banner ${status.type === 'ok' ? 'ok' : 'err'}`}>
+              <Icon name={status.type === 'ok' ? 'check-circle' : 'alert-triangle'} size={18} />
+              {status.text}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <button type="button" className="btn secondary" onClick={goBack}>
+              <Icon name="chevron-left" size={16} /> Voltar
+            </button>
+            <button type="button" className="btn primary" disabled={leads.length === 0} onClick={goNext}>
+              <Icon name="eye" size={16} />
+              {leads.length > 0 ? `Revisar disparo para ${leads.length} leads` : 'Revisar disparo'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Passo 4: Revisão ── */}
+      {step === 4 && (() => {
+        const reviewTemplate = templates.find((t) => t.id === formData.templateId);
+        const approved = reviewTemplate ? isTemplateApproved(reviewTemplate) : false;
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+            <p className="hint" style={{ margin: 0 }}>
+              Confira os dados antes de enviar. Depois de confirmado, as mensagens começam a sair para os leads abaixo.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <ReviewRow label="Campanha" value={formData.campaignName} />
+              <ReviewRow label="Tipo" value={formData.campaignType === 'reativacao' ? 'Reativação' : 'Prospecção'} />
+              <ReviewRow
+                label="Template"
+                value={
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {formData.templateName || '—'}
+                    <span className={`chip ${approved ? 'success' : 'danger'}`}>
+                      <span className="dot" />
+                      {approved ? 'Aprovado' : 'Não aprovado'}
+                    </span>
+                  </span>
+                }
+              />
+              {formData.empreendimentoNome && (
+                <ReviewRow label="Empreendimento" value={formData.empreendimentoNome} />
+              )}
+              {formData.imagemUrl && (
+                <ReviewRow label="Imagem" value={formData.imagemUrl} />
+              )}
+              <ReviewRow label="Destinatários" value={`${leads.length} leads`} />
+            </div>
+
+            {!approved && (
+              <div className="banner err">
+                <Icon name="alert-triangle" size={18} />
+                Este template não está aprovado pela Meta. Corrija antes de continuar — enviar um template não aprovado pode banir o número de WhatsApp.
               </div>
             )}
 
-            {imageUploadError && (
-              <span className="hint" style={{ color: 'var(--red-500)' }}>{imageUploadError}</span>
-            )}
-
-            <span className="hint">
-              Este template tem imagem no cabeçalho. O upload gera automaticamente um link público (JPG, PNG ou WEBP, até 5 MB).
-            </span>
-          </div>
-        )}
-
-        {/* Seleção de Empreendimento Cadastrado */}
-        <div className="field">
-          <label htmlFor="empreendimentoSelect">Empreendimento Cadastrado</label>
-          <select
-            id="empreendimentoSelect"
-            name="selectedEmpreendimentoId"
-            className="input"
-            value={selectedEmpreendimentoId}
-            onChange={handleEmpreendimentoChange}
-          >
-            {isLoadingEmpreendimentos ? (
-              <option value="">Carregando empreendimentos…</option>
-            ) : empreendimentosList.length === 0 ? (
-              <option value="">Nenhum empreendimento cadastrado</option>
-            ) : (
-              <option value="">-- Digitar Manualmente ou Escolher Empreendimento --</option>
-            )}
-            {!isLoadingEmpreendimentos && empreendimentosList.map((emp) => (
-              <option key={emp.id} value={emp.id}>
-                {emp.nome} (ID: {emp.id})
-              </option>
-            ))}
-          </select>
-          <span className="hint">Opcional. Selecione para preencher os dados do empreendimento e a observação para a IA automaticamente.</span>
-        </div>
-
-        {/* Empreendimento */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="field">
-            <label htmlFor="empreendimentoIdInput">ID do empreendimento</label>
-            <input
-              id="empreendimentoIdInput"
-              name="empreendimentoId"
-              className="input tnum"
-              type="text"
-              value={formData.empreendimentoId}
-              onChange={(e) => set({ empreendimentoId: e.target.value })}
-              placeholder="152"
-              autoComplete="off"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="empreendimentoNomeInput">Nome do empreendimento</label>
-            <input
-              id="empreendimentoNomeInput"
-              name="empreendimentoNome"
-              className="input"
-              type="text"
-              value={formData.empreendimentoNome}
-              onChange={(e) => set({ empreendimentoNome: e.target.value })}
-              placeholder="Lee Dama Tower"
-              autoComplete="off"
-            />
-          </div>
-        </div>
-
-        {/* Observação */}
-        <div className="field">
-          <label htmlFor="observacaoTextarea">Observação para a IA</label>
-          <textarea
-            id="observacaoTextarea"
-            name="observacao"
-            className="input"
-            value={formData.observacao}
-            onChange={(e) => set({ observacao: e.target.value })}
-            placeholder="Studios e apto 1 dorm para moradia e investimento, 800 m do mar."
-            rows={3}
-          />
-        </div>
-        </div>
-
-        {/* ── Coluna 2: leads & disparo ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-
-        {/* Upload CSV */}
-        <div className="field">
-          <label htmlFor="csvFileInput">Leads (CSV) *</label>
-          <input
-            id="csvFileInput"
-            name="leadsCsv"
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            onChange={handleCSVUpload}
-            autoComplete="off"
-            style={{ display: 'none' }}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="btn secondary"
-            style={{ alignSelf: 'flex-start' }}
-          >
-            <Icon name="upload" size={16} />
-            {fileName || 'Selecionar arquivo'}
-          </button>
-          <span className="hint">Colunas: nome, telefone. A primeira linha (cabeçalho) é ignorada.</span>
-
-          {leads.length > 0 && (
             <div
               className="thin-scroll"
               style={{
-                marginTop: 4, background: 'var(--paper-100)', border: '1px solid var(--paper-200)',
+                background: 'var(--paper-100)', border: '1px solid var(--paper-200)',
                 borderRadius: 14, padding: 14, maxHeight: 180, overflowY: 'auto',
               }}
             >
-              <div className="t-label" style={{ marginBottom: 10 }}>
-                {leads.length} leads carregados
-              </div>
+              <div className="t-label" style={{ marginBottom: 10 }}>Primeiros destinatários</div>
               {leads.slice(0, 6).map((lead, i) => (
                 <div
                   key={i}
@@ -966,24 +1044,41 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
                 </div>
               )}
             </div>
-          )}
-        </div>
 
-        {/* Status */}
-        {status && (
-          <div className={`banner ${status.type === 'ok' ? 'ok' : 'err'}`}>
-            <Icon name={status.type === 'ok' ? 'check-circle' : 'alert-triangle'} size={18} />
-            {status.text}
+            {status && (
+              <div className={`banner ${status.type === 'ok' ? 'ok' : 'err'}`}>
+                <Icon name={status.type === 'ok' ? 'check-circle' : 'alert-triangle'} size={18} />
+                {status.text}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="button" className="btn secondary" style={{ flex: 1 }} onClick={goBack} disabled={isLoading}>
+                <Icon name="chevron-left" size={16} /> Voltar e editar
+              </button>
+              <button
+                type="button"
+                className="btn primary"
+                style={{ flex: 2 }}
+                disabled={isLoading || !approved}
+                onClick={executeDispatch}
+              >
+                {isLoading ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                    <span className="spinner" style={{ borderColor: 'rgba(255, 255, 255, 0.3)', borderLeftColor: '#fff', width: 14, height: 14, borderWidth: 2 }} />
+                    Disparando…
+                  </span>
+                ) : (
+                  <>
+                    <Icon name="send" size={16} />
+                    Confirmar disparo para {leads.length} leads
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-        )}
-
-        {/* CTA */}
-        <button type="submit" disabled={leads.length === 0} className="btn primary lg block">
-          <Icon name="eye" size={16} />
-          {leads.length > 0 ? `Revisar disparo para ${leads.length} leads` : 'Revisar disparo'}
-        </button>
-        </div>
-      </form>
+        );
+      })()}
     </div>
   );
 };
