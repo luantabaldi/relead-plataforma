@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Icon } from './Icon';
+import { TemplateSelect } from './TemplateSelect';
+import { WizardPreviewPanel, CsvStats, CostEstimate } from './WizardPreviewPanel';
 
-interface Lead {
+export interface Lead {
   nome: string;
   telefone: string;
 }
@@ -40,6 +42,9 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [fileName, setFileName] = useState('');
+  const [csvStats, setCsvStats] = useState<CsvStats | null>(null);
+  const [costEstimate, setCostEstimate] = useState<CostEstimate | null>(null);
+  const [isLoadingCostEstimate, setIsLoadingCostEstimate] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [imageUploadError, setImageUploadError] = useState('');
@@ -119,6 +124,43 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
     };
   }, []);
 
+  // Custo estimado (Passo 4): média real do que esse template já custou em
+  // disparos anteriores, não uma tarifa fixa — evita mostrar um número que
+  // pode estar desatualizado em relação à tabela de preços real da Meta.
+  useEffect(() => {
+    const templateName = formData.templateName;
+    if (!templateName) {
+      setCostEstimate(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setIsLoadingCostEstimate(true);
+      try {
+        const { data, error } = await supabase
+          .from('v_disparos_custo')
+          .select('custo_estimado_usd')
+          .eq('template_nome', templateName)
+          .limit(500);
+        if (cancelled) return;
+        const values = (data || [])
+          .map((r: any) => Number(r.custo_estimado_usd))
+          .filter((v) => Number.isFinite(v) && v > 0);
+        if (error || values.length === 0) {
+          setCostEstimate(null);
+          return;
+        }
+        const avg = values.reduce((a, b) => a + b, 0) / values.length;
+        setCostEstimate({ avgPerMsg: avg, sampleSize: values.length });
+      } finally {
+        if (!cancelled) setIsLoadingCostEstimate(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.templateName]);
+
   const handleEmpreendimentoChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const empId = e.target.value;
     setSelectedEmpreendimentoId(empId);
@@ -158,11 +200,14 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
         }
 
         const delimiter = lines[0].includes(';') ? ';' : ',';
+        const dataLines = lines.slice(1);
 
         const parsedLeads: Lead[] = [];
+        const seenPhones = new Set<string>();
         const skipped: number[] = [];
+        let duplicateCount = 0;
 
-        lines.slice(1).forEach((line, idx) => {
+        dataLines.forEach((line, idx) => {
           const parts = line.split(delimiter).map((s) => s.trim());
           const nome = parts[0] || '';
           const rawTelefone = parts[1] || '';
@@ -174,27 +219,43 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
               cleanedTelefone = '55' + cleanedTelefone.slice(0, 2) + '9' + cleanedTelefone.slice(2);
             }
           }
-          if (cleanedTelefone && cleanedTelefone.length >= 10) {
-            parsedLeads.push({ nome, telefone: cleanedTelefone });
-          } else {
+          if (!cleanedTelefone || cleanedTelefone.length < 10) {
             skipped.push(idx + 2); // +2: pula header (linha 1) e ajusta para 1-index
+            return;
           }
+          // Mesmo telefone repetido no CSV — evita mandar a mesma mensagem
+          // duas vezes pro mesmo lead na mesma campanha.
+          if (seenPhones.has(cleanedTelefone)) {
+            duplicateCount++;
+            return;
+          }
+          seenPhones.add(cleanedTelefone);
+          parsedLeads.push({ nome, telefone: cleanedTelefone });
         });
 
         setLeads(parsedLeads);
+        setCsvStats({
+          totalLines: dataLines.length,
+          validNumbers: parsedLeads.length,
+          duplicatesRemoved: duplicateCount,
+          invalidSkipped: skipped.length,
+        });
 
+        const extras: string[] = [];
+        if (duplicateCount > 0) extras.push(`${duplicateCount} duplicado(s) removido(s)`);
         if (skipped.length > 0) {
           const linhas = skipped.length > 10
             ? `${skipped.slice(0, 10).join(', ')}… (+${skipped.length - 10})`
             : skipped.join(', ');
-          setStatus({
-            type: skipped.length === lines.length - 1 ? 'err' : 'ok',
-            text: `${parsedLeads.length} leads carregados. ${skipped.length} linha(s) ignorada(s) por telefone inválido: ${linhas}.`,
-          });
-        } else {
-          setStatus({ type: 'ok', text: `${parsedLeads.length} leads carregados do CSV.` });
+          extras.push(`${skipped.length} linha(s) ignorada(s) por telefone inválido: ${linhas}`);
         }
+
+        setStatus({
+          type: parsedLeads.length === 0 ? 'err' : 'ok',
+          text: `${parsedLeads.length} leads válidos carregados.${extras.length ? ' ' + extras.join('; ') + '.' : ''}`,
+        });
       } catch (err) {
+        setCsvStats(null);
         setStatus({ type: 'err', text: `Erro ao processar CSV: ${err instanceof Error ? err.message : 'desconhecido'}` });
       }
     };
@@ -446,6 +507,8 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
       });
       setLeads([]);
       setFileName('');
+      setCsvStats(null);
+      setCostEstimate(null);
       setStep(1);
       setMaxStepReached(1);
       setImageUploadError('');
@@ -612,8 +675,12 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
     4: { label: 'Revisar disparo', icon: 'eye' },
   };
 
+  const reviewTemplate = selectedTemplateForForm;
+  const approved = reviewTemplate ? isTemplateApproved(reviewTemplate) : false;
+
   return (
-    <div className="card" style={{ maxWidth: 640, padding: 28, gap: 22 }}>
+    <div className="wizard-split">
+      <div className="card" style={{ padding: 28, gap: 22, display: 'flex', flexDirection: 'column', minHeight: 580 }}>
       <div className="label">
         <span>{headerByStep[step].label}</span>
         <span className="ic-circle"><Icon name={headerByStep[step].icon} size={16} /></span>
@@ -660,6 +727,9 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
         })}
       </div>
 
+      {/* Conteúdo do passo — cresce livremente; o rodapé de ações abaixo fica
+          ancorado embaixo do card via marginTop: auto, não do conteúdo. */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 18 }}>
       {/* ── Passo 1: Configuração ── */}
       {step === 1 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -761,19 +831,6 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
               rows={3}
             />
           </div>
-
-          {status && (
-            <div className={`banner ${status.type === 'ok' ? 'ok' : 'err'}`}>
-              <Icon name={status.type === 'ok' ? 'check-circle' : 'alert-triangle'} size={18} />
-              {status.text}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button type="button" className="btn primary" onClick={goNext}>
-              Continuar <Icon name="chevron-right" size={16} />
-            </button>
-          </div>
         </div>
       )}
 
@@ -782,42 +839,13 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div className="field">
             <label htmlFor="templateSelect">Template de mensagem *</label>
-            <select
-              id="templateSelect"
-              name="templateId"
-              className="input"
+            <TemplateSelect
+              templates={templates}
+              campaignType={formData.campaignType}
               value={formData.templateId}
-              onChange={(e) => {
-                const template = templates.find((t) => t.id === e.target.value);
-                set({ templateId: e.target.value, templateName: template?.nome || '' });
-              }}
-              required
-            >
-              {isLoadingTemplates ? (
-                <option value="">Carregando templates…</option>
-              ) : templates.length === 0 ? (
-                <option value="">Nenhum template cadastrado</option>
-              ) : (
-                <option value="">Selecione um template</option>
-              )}
-              {!isLoadingTemplates && templates
-                .filter((t) => !t.tipo || t.tipo === formData.campaignType || t.tipo === 'nao_classificado')
-                .map((t) => {
-                  const approved = isTemplateApproved(t);
-                  const unclassified = t.tipo === 'nao_classificado';
-                  let suffix = '';
-                  if (!approved) {
-                    suffix = ` — ${t.status_meta === 'REJECTED' ? 'rejeitado pela Meta' : 'aguardando aprovação'}`;
-                  } else if (unclassified) {
-                    suffix = ' — classifique o tipo em Gerenciar';
-                  }
-                  return (
-                    <option key={t.id} value={t.id} disabled={!approved || unclassified}>
-                      {t.nome}{suffix}
-                    </option>
-                  );
-                })}
-            </select>
+              isLoading={isLoadingTemplates}
+              onChange={(id, nome) => set({ templateId: id, templateName: nome })}
+            />
             {selectedTemplateForForm && !isTemplateApproved(selectedTemplateForForm) ? (
               <span className="hint" style={{ color: 'var(--red-500)' }}>
                 Este template ainda não foi aprovado pela Meta e não pode ser usado em um disparo real.
@@ -880,22 +908,6 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
               </span>
             </div>
           )}
-
-          {status && (
-            <div className={`banner ${status.type === 'ok' ? 'ok' : 'err'}`}>
-              <Icon name={status.type === 'ok' ? 'check-circle' : 'alert-triangle'} size={18} />
-              {status.text}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <button type="button" className="btn secondary" onClick={goBack}>
-              <Icon name="chevron-left" size={16} /> Voltar
-            </button>
-            <button type="button" className="btn primary" onClick={goNext}>
-              Continuar <Icon name="chevron-right" size={16} />
-            </button>
-          </div>
         </div>
       )}
 
@@ -956,32 +968,11 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
               </div>
             )}
           </div>
-
-          {status && (
-            <div className={`banner ${status.type === 'ok' ? 'ok' : 'err'}`}>
-              <Icon name={status.type === 'ok' ? 'check-circle' : 'alert-triangle'} size={18} />
-              {status.text}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <button type="button" className="btn secondary" onClick={goBack}>
-              <Icon name="chevron-left" size={16} /> Voltar
-            </button>
-            <button type="button" className="btn primary" disabled={leads.length === 0} onClick={goNext}>
-              <Icon name="eye" size={16} />
-              {leads.length > 0 ? `Revisar disparo para ${leads.length} leads` : 'Revisar disparo'}
-            </button>
-          </div>
         </div>
       )}
 
       {/* ── Passo 4: Revisão ── */}
-      {step === 4 && (() => {
-        const reviewTemplate = templates.find((t) => t.id === formData.templateId);
-        const approved = reviewTemplate ? isTemplateApproved(reviewTemplate) : false;
-
-        return (
+      {step === 4 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
             <p className="hint" style={{ margin: 0 }}>
               Confira os dados antes de enviar. Depois de confirmado, as mensagens começam a sair para os leads abaixo.
@@ -1044,41 +1035,83 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
                 </div>
               )}
             </div>
-
-            {status && (
-              <div className={`banner ${status.type === 'ok' ? 'ok' : 'err'}`}>
-                <Icon name={status.type === 'ok' ? 'check-circle' : 'alert-triangle'} size={18} />
-                {status.text}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button type="button" className="btn secondary" style={{ flex: 1 }} onClick={goBack} disabled={isLoading}>
-                <Icon name="chevron-left" size={16} /> Voltar e editar
-              </button>
-              <button
-                type="button"
-                className="btn primary"
-                style={{ flex: 2 }}
-                disabled={isLoading || !approved}
-                onClick={executeDispatch}
-              >
-                {isLoading ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
-                    <span className="spinner" style={{ borderColor: 'rgba(255, 255, 255, 0.3)', borderLeftColor: '#fff', width: 14, height: 14, borderWidth: 2 }} />
-                    Disparando…
-                  </span>
-                ) : (
-                  <>
-                    <Icon name="send" size={16} />
-                    Confirmar disparo para {leads.length} leads
-                  </>
-                )}
-              </button>
-            </div>
           </div>
-        );
-      })()}
+      )}
+      </div>
+
+      {status && (
+        <div className={`banner ${status.type === 'ok' ? 'ok' : 'err'}`}>
+          <Icon name={status.type === 'ok' ? 'check-circle' : 'alert-triangle'} size={18} />
+          {status.text}
+        </div>
+      )}
+
+      {/* Rodapé de ações — ancorado embaixo do card (marginTop: auto) mesmo
+          quando o conteúdo acima muda de altura entre os passos. */}
+      <div
+        style={{
+          display: 'flex', justifyContent: step === 1 ? 'flex-end' : 'space-between', gap: 10,
+          marginTop: 'auto', paddingTop: 18, borderTop: '1px solid var(--paper-200)',
+        }}
+      >
+        {step > 1 && (
+          <button
+            type="button"
+            className="btn secondary"
+            style={step === 4 ? { flex: 1 } : undefined}
+            onClick={goBack}
+            disabled={isLoading}
+          >
+            <Icon name="chevron-left" size={16} /> {step === 4 ? 'Voltar e editar' : 'Voltar'}
+          </button>
+        )}
+
+        {step < 4 ? (
+          <button
+            type="button"
+            className="btn primary"
+            onClick={goNext}
+            disabled={step === 3 && leads.length === 0}
+          >
+            {step === 3 ? (
+              <><Icon name="eye" size={16} /> {leads.length > 0 ? `Revisar disparo para ${leads.length} leads` : 'Revisar disparo'}</>
+            ) : (
+              <>Continuar <Icon name="chevron-right" size={16} /></>
+            )}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn primary"
+            style={{ flex: 2 }}
+            disabled={isLoading || !approved}
+            onClick={executeDispatch}
+          >
+            {isLoading ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                <span className="spinner" style={{ borderColor: 'rgba(255, 255, 255, 0.3)', borderLeftColor: '#fff', width: 14, height: 14, borderWidth: 2 }} />
+                Disparando…
+              </span>
+            ) : (
+              <>
+                <Icon name="send" size={16} />
+                Confirmar disparo para {leads.length} leads
+              </>
+            )}
+          </button>
+        )}
+      </div>
+      </div>
+
+      <WizardPreviewPanel
+        step={step}
+        formData={formData}
+        selectedTemplate={selectedTemplateForForm}
+        leads={leads}
+        csvStats={csvStats}
+        costEstimate={costEstimate}
+        isLoadingCostEstimate={isLoadingCostEstimate}
+      />
     </div>
   );
 };
