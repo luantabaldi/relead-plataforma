@@ -14,7 +14,7 @@ reLead Hub substitui o trio Google Sheets + Postman + planilhas manuais por uma 
 
 ## Brand Personality
 
-Segue o Dash Design System: "crisp, editorial financial-analytics aesthetic" — confiante, preciso, sem ruído. Navy único (#171E45) como cor de marca, neutros cool-gray (nunca cream), Cormorant (serif) para toques humanos + Google Sans Flex para todo o resto, números tabulares, sentence case, zero emoji.
+Segue o Design System do reLead Hub (ver `design.md`): estética Salvy-style — canvas quieto, baixo contraste, foco total nos dados. Near-black único (`--navy-600 #0A0A0A`) como cor de marca, neutros true-gray (paper/ink), Inter para toda a interface (Google Sans Flex self-hosted como fallback), números tabulares, sentence case, zero emoji.
 
 ## Anti-references
 

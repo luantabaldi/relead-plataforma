@@ -1,0 +1,398 @@
+/* ============================================================
+   reLead Hub — Design System
+   ElevenLabs-style: monochrome (black / white / neutral gray),
+   a single sans-serif family, thin hairline borders, near-zero
+   shadow, generous spacing. No serif, no color-as-brand.
+   ============================================================ */
+
+/* ---------- FONT FACES (single family — Google Sans Flex) ---------- */
+
+@font-face { font-family: "Google Sans Flex"; src: url("./fonts/GoogleSansFlex_24pt-Thin.ttf")       format("truetype"); font-weight: 100; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex"; src: url("./fonts/GoogleSansFlex_24pt-ExtraLight.ttf") format("truetype"); font-weight: 200; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex"; src: url("./fonts/GoogleSansFlex_24pt-Light.ttf")      format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex"; src: url("./fonts/GoogleSansFlex_24pt-Regular.ttf")    format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex"; src: url("./fonts/GoogleSansFlex_24pt-Medium.ttf")     format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex"; src: url("./fonts/GoogleSansFlex_24pt-SemiBold.ttf")   format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex"; src: url("./fonts/GoogleSansFlex_24pt-Bold.ttf")       format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+
+@font-face { font-family: "Google Sans Flex Display"; src: url("./fonts/GoogleSansFlex_72pt-Light.ttf")    format("truetype"); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex Display"; src: url("./fonts/GoogleSansFlex_72pt-Regular.ttf")  format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex Display"; src: url("./fonts/GoogleSansFlex_72pt-Medium.ttf")   format("truetype"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex Display"; src: url("./fonts/GoogleSansFlex_72pt-SemiBold.ttf") format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Google Sans Flex Display"; src: url("./fonts/GoogleSansFlex_72pt-Bold.ttf")     format("truetype"); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* ---------- DESIGN TOKENS ---------- */
+
+:root {
+  /* Brand: near-black. Anchored at 600 (#0A0A0A) — the ElevenLabs
+     "everything important is black" CTA color. No blue, no orange. */
+  --navy-50:  #F2F2F2;
+  --navy-100: #E3E3E3;
+  --navy-200: #C7C7C7;
+  --navy-300: #A3A3A3;
+  --navy-400: #6E6E6E;
+  --navy-500: #333333;   /* hover state of primary button */
+  --navy-600: #0A0A0A;   /* primary CTAs — the brand color */
+  --navy-700: #000000;
+  --navy-800: #000000;
+  --navy-900: #000000;
+
+  /* Back-compat aliases: legacy --orange-* now resolve to navy. */
+  --orange-50:  var(--navy-50);
+  --orange-100: var(--navy-100);
+  --orange-200: var(--navy-200);
+  --orange-300: var(--navy-300);
+  --orange-400: var(--navy-400);
+  --orange-500: var(--navy-500);
+  --orange-600: var(--navy-600);
+  --orange-700: var(--navy-700);
+  --orange-800: var(--navy-800);
+  --orange-900: var(--navy-900);
+
+  /* Neutrals — true neutral gray, no undertone. Page canvas sits one tint
+     below card surfaces (--paper-50) so white cards read as "floating"
+     panels instead of blending into the background. */
+  --paper-0:   #FFFFFF;
+  --paper-50:  #F4F6F8;
+  --paper-100: #F1F2F4;
+  --paper-200: #E5E7EB;
+  --paper-300: #D4D4D4;
+  --paper-400: #A3A3A3;
+  --paper-500: #737373;
+
+  /* Ink — neutral, no warm undertone. */
+  --ink-50:  #737373;
+  --ink-100: #525252;
+  --ink-200: #262626;
+  --ink-300: #0A0A0A;
+  --ink-400: #000000;
+
+  /* Semantic accents — muted, used sparingly (status only) */
+  --green-500: #16A34A; --green-50: #F0FDF4;
+  --amber-500: #D97706; --amber-50: #FFFBEB;
+  --red-500:   #DC2626; --red-50:   #FEF2F2;
+  /* Aliases para uso em componentes (ações destrutivas / sucesso) */
+  --rose-500: var(--red-500); --rose-50: var(--red-50);
+  --emerald-500: var(--green-500); --emerald-50: var(--green-50);
+
+  /* DataViz accents — chart-only palette, deliberately separate from the
+     single navy UI accent. Calm, desaturated tones; no absolute black,
+     no vivid semaphore red/green. */
+  --chart-line: #3B4B7A;              /* line chart stroke + dots — dark, slightly grayed blue */
+  --chart-line-soft: rgba(59, 75, 122, 0.20);
+  --chart-funnel-1: #9AA6B8;          /* funnel: cool gray → pastel mint, continuous 3-stop gradient */
+  --chart-funnel-2: #86B4A8;
+  --chart-funnel-3: #6FC099;
+  --chart-status-enviado: #9AA6B8;    /* donut: calm status palette */
+  --chart-status-respondido: #8FA9C7;
+  --chart-status-interessado: #7FD1AE;
+  --chart-status-sem-interesse: #E7A3A3;
+  --chart-status-pausado: #E8C79A;
+  --chart-status-erro: #D6867F;
+
+  /* Roles */
+  --bg-page: var(--paper-50);
+  --bg-surface: var(--paper-0);
+  --bg-sunken: var(--paper-100);
+  --fg-primary: var(--ink-200);
+  --fg-secondary: var(--ink-100);
+  --fg-muted: var(--ink-50);
+  --fg-accent: var(--navy-600);
+  --border-hairline: var(--paper-200);
+  --border-default: var(--paper-300);
+  --focus-ring: 0 0 0 3px rgba(10, 10, 10, 0.14);
+
+  /* Type — Inter carries the whole interface (headings, body, data, labels).
+     Google Sans Flex stays as a self-hosted fallback so the layout doesn't
+     shift if the Google Fonts request is slow or blocked. */
+  --font-display: "Inter", "Google Sans Flex Display", "Google Sans Flex", -apple-system, system-ui, sans-serif;
+  --font-mono:    "Inter", "Google Sans Flex", -apple-system, system-ui, sans-serif;
+  --font-body:    "Inter", "Google Sans Flex", -apple-system, system-ui, sans-serif;
+  --font-sans-display: "Inter", "Google Sans Flex Display", "Google Sans Flex", system-ui, sans-serif;
+
+  /* Radii — generous, cards/modals rounder than buttons. Pills reserved
+     for search bars, filter chips and tags — not primary buttons. */
+  --radius-xs: 8px; --radius-sm: 12px; --radius-md: 16px;
+  --radius-lg: 20px; --radius-xl: 24px; --radius-2xl: 32px; --radius-full: 999px;
+
+  /* Shadows — soft and diffuse, low opacity, wide blur. This is what makes a
+     white card read as "resting on" the off-white page instead of a border
+     doing the separating. */
+  --shadow-xs: 0 4px 20px rgba(0, 0, 0, 0.03);
+  --shadow-sm: 0 8px 28px rgba(0, 0, 0, 0.05), 0 2px 6px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 16px 36px rgba(0, 0, 0, 0.07), 0 4px 10px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 28px 56px rgba(0, 0, 0, 0.10), 0 8px 16px rgba(0, 0, 0, 0.05);
+  --shadow-accent: 0 6px 18px rgba(10, 10, 10, 0.16);
+
+  /* Motion */
+  --ease-out:  cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-snap: cubic-bezier(0.4, 0, 0.1, 1);
+  --dur-fast: 120ms; --dur-base: 200ms; --dur-slow: 360ms;
+}
+
+/* ---------- BASE ---------- */
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  color: var(--fg-primary);
+  background: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+/* ---------- SEMANTIC TYPE ---------- */
+
+.t-display { font-family: var(--font-display); font-weight: 600; font-size: 56px; line-height: 1.05; letter-spacing: -0.03em; color: var(--ink-300); }
+.t-h1 { font-family: var(--font-display); font-weight: 600; font-size: 40px; line-height: 1.1; letter-spacing: -0.02em; color: var(--ink-300); }
+.t-h2 { font-family: var(--font-display); font-weight: 600; font-size: 28px; line-height: 1.15; letter-spacing: -0.02em; color: var(--ink-300); }
+.t-serif { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.02em; color: var(--ink-300); }
+.t-serif em { font-style: normal; color: var(--navy-600); }
+.t-label { font-family: var(--font-mono); font-weight: 500; font-size: 11px; line-height: 1; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); }
+.t-data { font-family: var(--font-sans-display); font-weight: 600; letter-spacing: -0.025em; color: var(--ink-300); font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+.t-mono { font-family: var(--font-body); letter-spacing: -0.01em; }
+.t-caption { font-family: var(--font-mono); font-weight: 400; font-size: 11px; line-height: 1.4; letter-spacing: 0.04em; color: var(--ink-50); }
+
+/* ============================================================
+   COMPONENT CLASSES
+   ============================================================ */
+
+/* ---------- App shell ---------- */
+/* The primary nav lives in a top header (`.topnav`) instead of a left rail —
+   everything below it stacks in a single column and scrolls internally. */
+.dash-app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.dash-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; flex: 1; overflow: hidden; }
+
+/* Single header row: nav (TopNav) on the left, search/notifications/profile
+   (Topbar) on the right — both are plain flex sections inside this bar. */
+.app-header { background: var(--paper-0); border-bottom: 1px solid var(--paper-200); padding: 0 40px; height: 68px; flex-shrink: 0; display: flex; align-items: center; gap: 28px; }
+
+/* ---------- Top nav (primary menu) ---------- */
+.topnav { display: flex; align-items: center; gap: 32px; }
+.brand-lockup { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.brand-lockup .mark { width: 28px; height: 28px; border-radius: 8px; background: var(--navy-600); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.brand-lockup .wm { font: 600 18px/1 var(--font-display); color: var(--ink-300); letter-spacing: -0.02em; }
+.brand-lockup .wm em { font-style: normal; color: var(--navy-600); font-weight: 600; }
+
+.topnav-items { display: flex; align-items: center; gap: 2px; height: 100%; }
+.topnav-divider { width: 1px; height: 22px; background: var(--paper-200); margin: 0 8px; }
+
+.nav-item { display: flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: var(--radius-full); font: 500 13px/1 var(--font-body); letter-spacing: -0.01em; color: var(--ink-100); cursor: pointer; transition: background var(--dur-fast) var(--ease-snap); border: 0; background: transparent; text-align: left; white-space: nowrap; }
+.nav-item:hover { background: var(--paper-100); }
+.nav-item.active { background: var(--paper-100); color: var(--ink-300); font-weight: 600; }
+.nav-item svg { flex-shrink: 0; }
+
+/* Sticky filter bar — Analisar */
+.analisar-filter-bar { position: sticky; top: 0; z-index: 20; background: var(--bg-page); padding: 12px 32px; margin: -16px -32px 8px; border-bottom: 1px solid var(--paper-200); backdrop-filter: blur(8px); }
+
+/* ---------- Topbar (right side of the header: search/notifications/profile) ---------- */
+.topbar { display: flex; align-items: center; gap: 16px; margin-left: auto; }
+
+.search { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: var(--radius-full); background: var(--paper-100); width: 320px; border: 1px solid transparent; transition: all var(--dur-fast) var(--ease-snap); }
+.search:focus-within { border-color: var(--paper-300); background: var(--paper-0); box-shadow: var(--focus-ring); }
+.search input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; font: 400 13px/1 var(--font-body); letter-spacing: -0.01em; color: var(--ink-200); }
+.search input::placeholder { color: var(--ink-50); }
+.search svg { color: var(--ink-50); flex-shrink: 0; }
+
+.icon-btn { width: 38px; height: 38px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--paper-0); border: 1px solid var(--paper-200); color: var(--ink-200); cursor: pointer; position: relative; transition: all var(--dur-fast) var(--ease-snap); }
+.icon-btn:hover { background: var(--paper-100); }
+.icon-btn .ping { position: absolute; top: 8px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink-300); border: 2px solid var(--paper-0); }
+
+.profile { display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 6px; border-radius: var(--radius-full); background: var(--paper-0); border: 1px solid var(--paper-200); cursor: pointer; }
+.profile .av { width: 30px; height: 30px; border-radius: 50%; background: var(--ink-300); display: inline-flex; align-items: center; justify-content: center; color: var(--paper-50); font: 700 12px/1 var(--font-mono); letter-spacing: -0.02em; }
+.profile .nm { font: 600 12px/1 var(--font-body); color: var(--ink-300); letter-spacing: -0.01em; }
+.profile .rl { font: 400 10px/1 var(--font-mono); color: var(--ink-50); letter-spacing: 0.04em; text-transform: uppercase; margin-top: 3px; }
+
+/* ---------- Page ---------- */
+.page { padding: 40px 40px 72px; flex: 1; overflow-y: auto; }
+.page-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 40px; }
+.page-hero h2 { margin: 0; font: 600 40px/1.1 var(--font-display); letter-spacing: -0.03em; color: var(--ink-300); }
+.page-hero h2 em { color: var(--navy-600); font-style: normal; }
+.page-hero .sub { font: 400 13px/1.45 var(--font-body); letter-spacing: -0.01em; color: var(--ink-50); margin-top: 12px; max-width: 56ch; }
+
+/* ---------- Buttons ---------- */
+.btn { font: 600 13px/1 var(--font-body); letter-spacing: -0.01em; padding: 12px 22px; border-radius: var(--radius-sm); border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: all var(--dur-fast) var(--ease-snap); white-space: nowrap; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn.primary { background: var(--navy-600); color: var(--paper-0); }
+.btn.primary:not(:disabled):hover { background: var(--navy-500); }
+.btn.primary:not(:disabled):active { transform: scale(0.98); }
+.btn.secondary { background: var(--paper-0); color: var(--ink-200); border-color: var(--paper-300); }
+.btn.secondary:not(:disabled):hover { background: var(--paper-100); border-color: var(--ink-200); }
+.btn.ghost { background: transparent; color: var(--ink-200); }
+.btn.ghost:not(:disabled):hover { background: var(--paper-100); }
+.btn.dark { background: var(--ink-300); color: var(--paper-0); }
+.btn.dark:not(:disabled):hover { background: var(--ink-200); }
+.btn.danger { background: var(--red-500); color: #fff; }
+.btn.danger:not(:disabled):hover { background: #B91C1C; }
+.btn.block { width: 100%; }
+.btn.lg { padding: 14px 24px; font-size: 14px; border-radius: var(--radius-sm); }
+
+/* ---------- Cards ---------- */
+/* Every card is pure white — the only thing separating it from the
+   off-white page is a soft, wide-blur shadow (never a border doing the
+   work, never a solid dark fill). The one deliberate exception is
+   .green-border, a ~5%-opacity pastel tint reserved for a single
+   highlighted "this rate is good" card — not a general-purpose tone. */
+.card { background: var(--paper-0); border: 1px solid var(--paper-100); border-radius: var(--radius-md); padding: 28px; display: flex; flex-direction: column; gap: 14px; position: relative; box-shadow: var(--shadow-xs); transition: all var(--dur-base) var(--ease-out); }
+.card.clickable { cursor: pointer; }
+.card.clickable:hover { border-color: var(--paper-200); box-shadow: var(--shadow-sm); }
+.card.accent, .card.dark, .card.soft { background: var(--paper-0); border-color: var(--paper-100); color: var(--ink-300); }
+.card.green-border { background: #F3FAF6; border-color: #DCF3E3; }
+.card .label { font: 500 11px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); display: flex; justify-content: space-between; align-items: center; }
+.card .ic-circle { width: 30px; height: 30px; border-radius: 50%; background: var(--paper-100); display: inline-flex; align-items: center; justify-content: center; color: var(--ink-100); }
+.card.accent .ic-circle, .card.dark .ic-circle { background: var(--navy-50); color: var(--navy-600); }
+.card.green-border .ic-circle { background: #FFFFFF; color: #16A34A; }
+.card .num { font-family: var(--font-sans-display); font-weight: 600; font-size: 26px; line-height: 1.05; letter-spacing: -0.02em; color: var(--ink-300); font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+.card.accent .num, .card.dark .num { color: var(--navy-600); }
+.card.green-border .num { color: #15803D; }
+.card .delta { font-family: var(--font-body); font-weight: 500; font-size: 11px; line-height: 1; display: inline-flex; align-items: center; gap: 6px; }
+.card .delta .up { color: #16A34A; }
+.card .delta .down { color: #DC2626; }
+.card .delta .muted { color: var(--ink-50); font-weight: 400; }
+
+/* Bigger number for cards emphasized as primary metrics (bento "large" tier). */
+.card.lg-num .num { font-size: 36px; }
+
+/* Cards that share a slot in a bento layout (stacked half-height pair) —
+   tighter padding, smaller number, content centered in the shorter row. */
+.card.compact { padding: 18px 20px; gap: 6px; justify-content: center; }
+.card.compact .num { font-size: 19px; }
+.card.compact .label { font-size: 10px; }
+
+/* ---------- Bento KPI grid ---------- */
+/* Asymmetric composition: two wide primary cards, a stacked pair sharing
+   one card's footprint, and a row of narrow "rate" cards. Falls back to a
+   plain responsive grid below ~1080px where the asymmetry has no room. */
+.bento-grid { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(2, minmax(84px, auto)); grid-template-areas: "leads leads interessados interessados tempo resp taxaint custo" "leads leads interessados interessados erro resp taxaint custo"; gap: 20px; }
+.bento-leads { grid-area: leads; }
+.bento-interessados { grid-area: interessados; }
+.bento-tempo { grid-area: tempo; }
+.bento-erro { grid-area: erro; }
+.bento-resp { grid-area: resp; }
+.bento-taxaint { grid-area: taxaint; }
+.bento-custo { grid-area: custo; }
+@media (max-width: 1080px) {
+  .bento-grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: none; grid-template-areas: none; }
+  .bento-grid > * { grid-area: auto; }
+}
+@media (max-width: 620px) {
+  .bento-grid { grid-template-columns: 1fr; }
+}
+
+/* ---------- Section header ---------- */
+.section { display: flex; align-items: flex-end; justify-content: space-between; margin: 40px 0 20px; gap: 16px; }
+.section h3 { margin: 0; font: 600 22px/1 var(--font-display); letter-spacing: -0.02em; color: var(--ink-300); }
+.section .right { display: flex; gap: 10px; align-items: center; }
+
+/* ---------- Chips / status pills ---------- */
+/* Pastel pill — a ~12% tint of the status hue as background, a darker
+   shade of the same family as text. No hard border, no solid fill. */
+.chip { font: 600 11px/1 var(--font-body); letter-spacing: 0; text-transform: none; padding: 6px 12px; border-radius: var(--radius-full); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; background: var(--paper-100); border: 1px solid transparent; color: var(--ink-200); }
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.chip.ok,   .chip.success { background: var(--green-50); color: #166534; }
+.chip.ok .dot, .chip.success .dot { background: #16A34A; }
+.chip.warn, .chip.warning { background: var(--amber-50); color: #92400E; }
+.chip.warn .dot, .chip.warning .dot { background: #D97706; }
+.chip.err,  .chip.danger  { background: var(--red-50); color: #991B1B; }
+.chip.err .dot, .chip.danger .dot { background: #DC2626; }
+.chip.info { background: var(--paper-100); color: var(--ink-300); }
+.chip.info .dot { background: var(--ink-300); }
+.chip.neutral { background: var(--paper-100); color: var(--ink-100); }
+.chip.neutral .dot { background: var(--ink-50); }
+.dot.success { background: #16A34A; } .dot.err { background: #DC2626; }
+
+.tag-pill { font: 400 12px/1 var(--font-body); letter-spacing: -0.01em; padding: 7px 12px; border-radius: var(--radius-full); display: inline-flex; align-items: center; gap: 6px; background: var(--paper-0); color: var(--ink-100); border: 1px solid var(--paper-200); cursor: pointer; }
+.tag-pill .x { color: var(--ink-50); display: inline-flex; }
+
+/* ---------- Form fields ---------- */
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field label { font: 500 10px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-50); }
+.field .hint { font: 400 11px/1.4 var(--font-body); color: var(--ink-50); letter-spacing: -0.01em; }
+.input { font: 400 14px/1.2 var(--font-body); letter-spacing: -0.01em; padding: 13px 16px; border-radius: var(--radius-sm); border: 1px solid var(--paper-300); background: var(--paper-0); color: var(--ink-200); outline: none; transition: all var(--dur-fast) var(--ease-snap); width: 100%; }
+.input::placeholder { color: var(--paper-400); }
+.input:focus { border-color: var(--ink-300); box-shadow: var(--focus-ring); }
+textarea.input { resize: vertical; line-height: 1.5; }
+select.input { appearance: none; -webkit-appearance: none; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 40px; }
+
+/* ---------- Checkbox ---------- */
+.dash-check { width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--paper-300); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; background: var(--paper-0); transition: all var(--dur-fast) var(--ease-snap); flex-shrink: 0; }
+.dash-check.on { background: var(--ink-300); border-color: var(--ink-300); color: var(--paper-0); }
+
+/* ---------- Table ---------- */
+/* No cell borders or header fill — only a hairline divider between rows,
+   with generous cell padding so data has room to breathe. */
+.dash-table { width: 100%; border-collapse: collapse; font: 400 13px/1.3 var(--font-body); letter-spacing: -0.01em; }
+.dash-table th { font: 500 11px/1 var(--font-body); letter-spacing: 0.02em; text-transform: none; color: var(--ink-50); text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--paper-200); }
+.dash-table td { padding: 18px 16px; border-bottom: 1px solid var(--paper-200); color: var(--ink-200); vertical-align: middle; }
+.dash-table tr:last-child td { border-bottom: 0; }
+.dash-table tr.row { cursor: pointer; transition: background var(--dur-fast) var(--ease-snap); }
+.dash-table tr.row:hover td { background: var(--paper-50); }
+.dash-table tr.row.selected td { background: var(--paper-100); }
+
+/* ---------- Avatar token (lead initials) ---------- */
+.lead-av { width: 36px; height: 36px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; justify-content: center; font: 700 13px/1 var(--font-mono); letter-spacing: -0.02em; flex-shrink: 0; }
+.lead-av.a { background: #E5E5E5; color: #262626; }
+.lead-av.b { background: #F0FDF4; color: #166534; }
+.lead-av.c { background: #F2F2F2; color: #525252; }
+.lead-av.d { background: #FFFBEB; color: #92400E; }
+
+/* ---------- Wizard split-screen (Disparar → Nova campanha) ---------- */
+/* Left column: the step form (fixed-height card, footer pinned to the
+   bottom). Right column: a live preview that swaps by step. min-height
+   subtracts the real topbar height (68px, --app-header) instead of a flat
+   100vh, so the layout doesn't force a phantom scroll below short steps. */
+.wizard-split { display: grid; grid-template-columns: 5fr 7fr; gap: 40px; align-items: start; min-height: calc(100vh - 68px); }
+@media (max-width: 1100px) {
+  .wizard-split { grid-template-columns: 1fr; min-height: auto; }
+}
+
+/* ---------- Chat bubbles ---------- */
+.bubble { max-width: 78%; padding: 11px 15px; border-radius: var(--radius-lg); font: 400 13px/1.5 var(--font-body); letter-spacing: -0.01em; word-break: break-word; }
+/* Slate, not absolute black — softer on the eyes across a full thread. */
+.bubble.out { background: #334155; color: var(--paper-0); border-bottom-right-radius: 6px; }
+.bubble.in { background: var(--paper-100); color: var(--ink-200); border: 1px solid var(--paper-200); border-bottom-left-radius: 6px; }
+.bubble .meta { font: 400 10px/1 var(--font-mono); letter-spacing: 0.02em; margin-top: 6px; opacity: 0.7; }
+
+/* ---------- Modal / toast ---------- */
+.scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 100; animation: fadein 200ms var(--ease-out); padding: 24px; }
+.modal { background: var(--paper-0); border-radius: var(--radius-lg); padding: 28px; width: 480px; max-width: 100%; box-shadow: var(--shadow-lg); animation: rise 280ms var(--ease-out); }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeup { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink-300); color: var(--paper-0); padding: 14px 20px; border-radius: var(--radius-full); display: flex; align-items: center; gap: 10px; font: 400 13px/1 var(--font-body); letter-spacing: -0.01em; box-shadow: var(--shadow-lg); z-index: 200; animation: rise 240ms var(--ease-out); }
+.toast b { font-weight: 700; color: var(--paper-0); }
+.toast .check { width: 18px; height: 18px; border-radius: 50%; background: var(--green-500); display: inline-flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
+
+/* ---------- Banner / alert ---------- */
+.banner { border-radius: var(--radius-sm); padding: 14px 16px; font: 500 13px/1.4 var(--font-body); letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; }
+.banner.ok  { background: var(--green-50); color: #166534; }
+.banner.err { background: var(--red-50);   color: #991B1B; }
+
+/* ---------- Progress bar ---------- */
+.progress { height: 8px; background: var(--paper-100); border-radius: var(--radius-full); overflow: hidden; }
+.progress > span { display: block; height: 100%; background: var(--navy-600); border-radius: var(--radius-full); }
+
+/* ---------- Spinner ---------- */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner { width: 14px; height: 14px; border: 2px solid var(--paper-300); border-left-color: var(--ink-300); border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; flex-shrink: 0; }
+
+/* ---------- Empty state ---------- */
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 56px 24px; gap: 8px; }
+.empty .ic { width: 56px; height: 56px; border-radius: var(--radius-lg); background: var(--paper-100); display: inline-flex; align-items: center; justify-content: center; color: var(--ink-50); margin-bottom: 8px; }
+
+/* ---------- Scrollbar ---------- */
+.thin-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.thin-scroll::-webkit-scrollbar-thumb { background: var(--paper-300); border-radius: var(--radius-full); }
+.thin-scroll::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
