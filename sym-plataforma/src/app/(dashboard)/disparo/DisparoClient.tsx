@@ -7,8 +7,46 @@ import { UploadCloud, Check, AlertCircle, ChevronRight, Loader2, Send } from 'lu
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { findBlocked, isBlockedIn } from '@/lib/blacklist'
+import { estimarCusto, formatBrl, formatUsd, type CustoEstimado, type Tarifa } from '@/lib/custo'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface TemplateOpt {
+  id: string
+  nome: string
+  categoria: string | null
+}
+
+interface NumeroOpt {
+  phone_number_id: string
+  numero_display: string | null
+  apelido: string | null
+  quality_rating: string | null
+}
+
+interface AgenteOpt {
+  slug: string
+  nome: string
+  descricao: string | null
+}
+
+interface Opcoes {
+  templates: TemplateOpt[]
+  numeros: NumeroOpt[]
+  agentes: AgenteOpt[]
+  tarifas: Tarifa[]
+}
+
+interface Resumo {
+  template: string
+  numero: string
+  agente: string
+}
+
+function rotuloNumero(n: NumeroOpt): string {
+  const base = n.apelido ? `${n.apelido} · ${n.numero_display ?? n.phone_number_id}` : (n.numero_display ?? n.phone_number_id)
+  return n.quality_rating ? `${base} (qualidade ${n.quality_rating})` : base
+}
 
 interface LeadDoCsv {
   nome: string
@@ -398,57 +436,116 @@ function Step2({
 interface Step3Props {
   nome: string
   leadsCount: number
-  template: string
+  opcoes: Opcoes | null
+  templateId: string
+  numeroId: string
+  agenteSlug: string
   idEmpreendimento: string
-  tipoCampanha: string
   linkImagem: string
-  approvedTemplates: string[] | null
+  resumo: Resumo
+  custo: CustoEstimado | null
+  usdBrl: number | null
   onTemplateChange: (v: string) => void
+  onNumeroChange: (v: string) => void
+  onAgenteChange: (v: string) => void
   onIdChange: (v: string) => void
-  onTipoChange: (v: string) => void
   onLinkChange: (v: string) => void
   onBack: () => void
   onNext: () => void
 }
 
 function Step3({
-  nome, leadsCount, template, idEmpreendimento, tipoCampanha, linkImagem,
-  approvedTemplates, onTemplateChange, onIdChange, onTipoChange, onLinkChange,
+  nome, leadsCount, opcoes, templateId, numeroId, agenteSlug, idEmpreendimento, linkImagem,
+  resumo, custo, usdBrl,
+  onTemplateChange, onNumeroChange, onAgenteChange, onIdChange, onLinkChange,
   onBack, onNext,
 }: Step3Props) {
   const [idFocused, setIdFocused] = useState(false)
   const [linkFocused, setLinkFocused] = useState(false)
 
-  const step3Valid = template.trim() !== '' && idEmpreendimento.trim() !== '' && tipoCampanha !== ''
+  const step3Valid =
+    templateId !== '' && numeroId !== '' && agenteSlug !== '' && idEmpreendimento.trim() !== ''
+
+  const aviso = (texto: string) => (
+    <div className={inputCls} style={{ ...inputStyle(), color: '#B45309' }}>{texto}</div>
+  )
 
   return (
     <div className="space-y-6">
+      {/* Número */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium" style={primary}>
+          Número do disparo <span style={{ color: '#DC2626' }}>*</span>
+        </label>
+        {opcoes === null ? (
+          <div className={inputCls} style={{ ...inputStyle(), opacity: 0.6 }}>Carregando números...</div>
+        ) : opcoes.numeros.length === 0 ? (
+          aviso('Nenhum número ativo e conectado. Sincronize com a Meta em Configurações.')
+        ) : (
+          <select
+            value={numeroId}
+            onChange={(e) => onNumeroChange(e.target.value)}
+            className={inputCls}
+            style={inputStyle()}
+          >
+            <option value="">Selecione o número</option>
+            {opcoes.numeros.map((n) => (
+              <option key={n.phone_number_id} value={n.phone_number_id}>
+                {rotuloNumero(n)}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {/* Agente */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium" style={primary}>
+          Agente de mensagem <span style={{ color: '#DC2626' }}>*</span>
+        </label>
+        {opcoes === null ? (
+          <div className={inputCls} style={{ ...inputStyle(), opacity: 0.6 }}>Carregando agentes...</div>
+        ) : opcoes.agentes.length === 0 ? (
+          aviso('Nenhum agente ativo cadastrado.')
+        ) : (
+          <select
+            value={agenteSlug}
+            onChange={(e) => onAgenteChange(e.target.value)}
+            className={inputCls}
+            style={inputStyle()}
+          >
+            <option value="">Selecione o agente</option>
+            {opcoes.agentes.map((a) => (
+              <option key={a.slug} value={a.slug}>
+                {a.nome}{a.descricao ? ` — ${a.descricao}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+        <p className="text-xs" style={muted}>
+          É quem responde os leads que retornarem a esta campanha.
+        </p>
+      </div>
+
       {/* Template */}
       <div className="space-y-2">
         <label className="text-sm font-medium" style={primary}>
           Template <span style={{ color: '#DC2626' }}>*</span>
         </label>
-        {approvedTemplates === null ? (
-          <div className={inputCls} style={{ ...inputStyle(), opacity: 0.6 }}>
-            Carregando templates...
-          </div>
-        ) : approvedTemplates.length === 0 ? (
-          <div
-            className={inputCls}
-            style={{ ...inputStyle(), color: '#B45309' }}
-          >
-            Nenhum template aprovado encontrado. Sincronize os templates em Configurações.
-          </div>
+        {opcoes === null ? (
+          <div className={inputCls} style={{ ...inputStyle(), opacity: 0.6 }}>Carregando templates...</div>
+        ) : opcoes.templates.length === 0 ? (
+          aviso('Nenhum template aprovado encontrado. Sincronize os templates em Configurações.')
         ) : (
           <select
-            value={template}
+            value={templateId}
             onChange={(e) => onTemplateChange(e.target.value)}
             className={inputCls}
             style={inputStyle()}
           >
             <option value="">Selecione um template aprovado</option>
-            {approvedTemplates.map((t) => (
-              <option key={t} value={t}>{t}</option>
+            {opcoes.templates.map((t) => (
+              <option key={t.id} value={t.id}>{t.nome}</option>
             ))}
           </select>
         )}
@@ -472,23 +569,6 @@ function Step3({
         <p className="text-xs" style={muted}>
           Este ID será enviado para todos os leads desta campanha.
         </p>
-      </div>
-
-      {/* Tipo de campanha */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium" style={primary}>
-          Tipo de Campanha <span style={{ color: '#DC2626' }}>*</span>
-        </label>
-        <select
-          value={tipoCampanha}
-          onChange={(e) => onTipoChange(e.target.value)}
-          className={inputCls}
-          style={inputStyle()}
-        >
-          <option value="">Selecione o tipo</option>
-          <option value="reativacao">Reativação</option>
-          <option value="prospeccao">Prospecção</option>
-        </select>
       </div>
 
       {/* Link da imagem */}
@@ -520,11 +600,13 @@ function Step3({
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <SummaryField label="Nome" value={nome} />
             <SummaryField label="Total de leads" value={`${leadsCount.toLocaleString('pt-BR')} lead${leadsCount !== 1 ? 's' : ''}`} />
-            <SummaryField label="Template" value={template} />
+            <SummaryField label="Template" value={resumo.template} />
+            <SummaryField label="Número" value={resumo.numero} />
+            <SummaryField label="Agente" value={resumo.agente} />
             <SummaryField label="ID Empreendimento" value={idEmpreendimento} />
-            <SummaryField label="Tipo" value={tipoCampanha} capitalize />
             {linkImagem && <SummaryField label="Imagem" value="Configurada" />}
           </div>
+          <CustoCard custo={custo} usdBrl={usdBrl} />
         </div>
       )}
 
@@ -549,16 +631,56 @@ function Step3({
   )
 }
 
+// ─── Custo estimado ───────────────────────────────────────────────────────────
+
+function CustoCard({ custo, usdBrl }: { custo: CustoEstimado | null; usdBrl: number | null }) {
+  if (!custo) {
+    return (
+      <div className="pt-4" style={{ borderTop: '1px solid var(--color-border)' }}>
+        <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={muted}>
+          Custo estimado
+        </p>
+        <p className="text-xs" style={muted}>
+          Indisponível: a categoria do template ou a tarifa não foi encontrada. Sincronize com a Meta em Configurações.
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="pt-4" style={{ borderTop: '1px solid var(--color-border)' }}>
+      <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={muted}>
+        Custo estimado
+      </p>
+      {custo.totalBrl !== null ? (
+        <>
+          <p className="text-lg font-semibold" style={primary}>{formatBrl(custo.totalBrl)}</p>
+          <p className="text-[11px]" style={muted}>{formatUsd(custo.totalUsd)}</p>
+        </>
+      ) : (
+        <>
+          <p className="text-lg font-semibold" style={primary}>{formatUsd(custo.totalUsd)}</p>
+          <p className="text-[11px]" style={muted}>Cotação do dólar indisponível no momento.</p>
+        </>
+      )}
+      <p className="text-[11px] mt-2" style={muted}>
+        {custo.leads.toLocaleString('pt-BR')} leads × {formatUsd(custo.precoUnitarioUsd, 4)} por mensagem ({custo.categoria})
+        {usdBrl ? ` · US$ 1 = ${formatBrl(usdBrl)}` : ''}. Estimativa: a Meta cobra por mensagem entregue.
+      </p>
+    </div>
+  )
+}
+
 // ─── Step 4: Observations + Dispatch ─────────────────────────────────────────
 
 interface Step4Props {
   validLeads: LeadDoCsv[]
   onUpdateObservacao: (idx: number, obs: string) => void
   nome: string
-  template: string
+  resumo: Resumo
   idEmpreendimento: string
-  tipoCampanha: string
   linkImagem: string
+  custo: CustoEstimado | null
+  usdBrl: number | null
   confirmed: boolean
   onConfirmChange: (v: boolean) => void
   sending: boolean
@@ -568,7 +690,7 @@ interface Step4Props {
 
 function Step4({
   validLeads, onUpdateObservacao,
-  nome, template, idEmpreendimento, tipoCampanha, linkImagem,
+  nome, resumo, idEmpreendimento, linkImagem, custo, usdBrl,
   confirmed, onConfirmChange,
   sending, onDispatch, onBack,
 }: Step4Props) {
@@ -647,11 +769,13 @@ function Step4({
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <SummaryField label="Nome" value={nome} />
           <SummaryField label="Total de leads" value={`${validLeads.length.toLocaleString('pt-BR')}`} />
-          <SummaryField label="Template" value={template} />
+          <SummaryField label="Template" value={resumo.template} />
+          <SummaryField label="Número" value={resumo.numero} />
+          <SummaryField label="Agente" value={resumo.agente} />
           <SummaryField label="ID Empreendimento" value={idEmpreendimento} />
-          <SummaryField label="Tipo" value={tipoCampanha} capitalize />
           <SummaryField label="Imagem" value={linkImagem || 'Nenhuma'} />
         </div>
+        <CustoCard custo={custo} usdBrl={usdBrl} />
       </div>
 
       {/* Confirmation checkbox */}
@@ -782,29 +906,66 @@ export default function DisparoClient() {
   const [checkingBlacklist, setCheckingBlacklist] = useState(false)
 
   // Step 3
-  const [template, setTemplate] = useState('')
+  const [templateId, setTemplateId] = useState('')
+  const [numeroId, setNumeroId] = useState('')
+  const [agenteSlug, setAgenteSlug] = useState('')
   const [idEmpreendimento, setIdEmpreendimento] = useState('')
-  const [tipoCampanha, setTipoCampanha] = useState('')
   const [linkImagem, setLinkImagem] = useState('')
-  const [approvedTemplates, setApprovedTemplates] = useState<string[] | null>(null)
+  const [opcoes, setOpcoes] = useState<Opcoes | null>(null)
+  const [usdBrl, setUsdBrl] = useState<number | null>(null)
 
   // Step 4
   const [confirmed, setConfirmed] = useState(false)
   const [sending, setSending] = useState(false)
 
-  // Load approved templates when step 3 is first reached
+  // Carrega templates aprovados, números, agentes e tarifas na primeira vez que a etapa 3 abre
   useEffect(() => {
-    if (step !== 2 || approvedTemplates !== null) return
-    supabase
-      .from('templates_wpp')
-      .select('nome')
-      .in('status_meta', ['APPROVED', 'Aprovado'])
-      .order('nome')
-      .then(({ data, error }) => {
-        const names = error ? [] : (data?.map((t) => t.nome).filter(Boolean) ?? [])
-        setApprovedTemplates(names)
+    if (step !== 2 || opcoes !== null) return
+    Promise.all([
+      supabase
+        .from('templates_wpp')
+        .select('id, nome, categoria')
+        .in('status_meta', ['APPROVED', 'Aprovado'])
+        .order('nome'),
+      supabase
+        .from('numeros_whatsapp_status')
+        .select('phone_number_id, numero_display, apelido, quality_rating')
+        .eq('ativo', true)
+        .eq('status', 'CONNECTED')
+        .order('numero_display'),
+      supabase
+        .from('agentes')
+        .select('slug, nome, descricao, padrao')
+        .eq('ativo', true)
+        .order('nome'),
+      supabase.from('meta_tarifas').select('categoria, preco_usd').eq('pais_codigo', 55),
+      fetch('/api/cotacao').then((r) => r.json()).catch(() => null),
+    ]).then(([tpl, num, ag, tar, cot]) => {
+      const numeros = (num.data ?? []) as NumeroOpt[]
+      const agentes = (ag.data ?? []) as (AgenteOpt & { padrao: boolean })[]
+      setOpcoes({
+        templates: (tpl.data ?? []) as TemplateOpt[],
+        numeros,
+        agentes,
+        tarifas: (tar.data ?? []).map((t) => ({ categoria: t.categoria as string, preco_usd: Number(t.preco_usd) })),
       })
+      setUsdBrl(typeof cot?.usd_brl === 'number' ? cot.usd_brl : null)
+      // Com uma única opção, já deixa selecionada; as demais o usuário escolhe
+      if (numeros.length === 1) setNumeroId((v) => v || numeros[0].phone_number_id)
+      const padrao = agentes.find((a) => a.padrao)
+      if (padrao) setAgenteSlug((v) => v || padrao.slug)
+    })
   }, [step])
+
+  const templateSel = opcoes?.templates.find((t) => t.id === templateId)
+  const numeroSel = opcoes?.numeros.find((n) => n.phone_number_id === numeroId)
+  const agenteSel = opcoes?.agentes.find((a) => a.slug === agenteSlug)
+  const resumo: Resumo = {
+    template: templateSel?.nome ?? '—',
+    numero: numeroSel ? rotuloNumero(numeroSel) : '—',
+    agente: agenteSel?.nome ?? '—',
+  }
+  const custo = estimarCusto(validLeads.length, templateSel?.categoria, opcoes?.tarifas ?? [], usdBrl)
 
   async function handleFileParsed(rows: ParsedRow[], valid: LeadDoCsv[]) {
     setParsedRows(rows)
@@ -835,9 +996,10 @@ export default function DisparoClient() {
     try {
       const payload = {
         nome_campanha: nome,
-        template_nome: template,
+        template_id: templateId,
         id_empreendimento: idEmpreendimento,
-        tipo_campanha: tipoCampanha,
+        phone_number_id: numeroId,
+        agente_slug: agenteSlug,
         link_imagem: linkImagem || null,
         leads: validLeads,
       }
@@ -890,14 +1052,19 @@ export default function DisparoClient() {
           <Step3
             nome={nome}
             leadsCount={validLeads.length}
-            template={template}
+            opcoes={opcoes}
+            templateId={templateId}
+            numeroId={numeroId}
+            agenteSlug={agenteSlug}
             idEmpreendimento={idEmpreendimento}
-            tipoCampanha={tipoCampanha}
             linkImagem={linkImagem}
-            approvedTemplates={approvedTemplates}
-            onTemplateChange={setTemplate}
+            resumo={resumo}
+            custo={custo}
+            usdBrl={usdBrl}
+            onTemplateChange={setTemplateId}
+            onNumeroChange={setNumeroId}
+            onAgenteChange={setAgenteSlug}
             onIdChange={setIdEmpreendimento}
-            onTipoChange={setTipoCampanha}
             onLinkChange={setLinkImagem}
             onBack={() => setStep(1)}
             onNext={() => setStep(3)}
@@ -909,10 +1076,11 @@ export default function DisparoClient() {
             validLeads={validLeads}
             onUpdateObservacao={updateObservacao}
             nome={nome}
-            template={template}
+            resumo={resumo}
             idEmpreendimento={idEmpreendimento}
-            tipoCampanha={tipoCampanha}
             linkImagem={linkImagem}
+            custo={custo}
+            usdBrl={usdBrl}
             confirmed={confirmed}
             onConfirmChange={setConfirmed}
             sending={sending}

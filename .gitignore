@@ -68,3 +68,5 @@ cypress/videos/
 
 .vercel
 .env*
+
+.notion-project.local.json

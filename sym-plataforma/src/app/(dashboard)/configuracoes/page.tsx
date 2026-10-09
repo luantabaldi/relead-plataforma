@@ -14,6 +14,7 @@ type Template = {
   nome: string
   tipo: string | null
   status_meta: string
+  ultima_sincronizacao: string | null
 }
 
 type Instancia = {
@@ -111,6 +112,7 @@ function TemplatesTab({ supabase }: { supabase: ReturnType<typeof createClient> 
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<{ open: boolean; row: Template | null }>({ open: false, row: null })
   const [saving, setSaving] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const nomeRef = useRef<HTMLInputElement>(null)
   const tipoRef = useRef<HTMLSelectElement>(null)
 
@@ -118,11 +120,38 @@ function TemplatesTab({ supabase }: { supabase: ReturnType<typeof createClient> 
     setLoading(true)
     const { data } = await supabase
       .from('templates_wpp')
-      .select('id, nome, tipo, status_meta')
+      .select('id, nome, tipo, status_meta, ultima_sincronizacao')
       .order('nome')
     setRows((data as Template[]) ?? [])
     setLoading(false)
   }
+
+  // O n8n responde assim que recebe o pedido e sincroniza em segundo plano: recarrega a lista depois de alguns segundos.
+  const handleSync = async () => {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/sync', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.success) {
+        toast.error(data.error ?? 'Não foi possível iniciar a sincronização')
+        setSyncing(false)
+        return
+      }
+      toast.success('Sincronização iniciada. Atualizando a lista em instantes...')
+      setTimeout(async () => {
+        await load()
+        setSyncing(false)
+      }, 15000)
+    } catch {
+      toast.error('Erro de conexão ao iniciar a sincronização')
+      setSyncing(false)
+    }
+  }
+
+  const ultimaSync = rows.reduce<string | null>(
+    (max, r) => (r.ultima_sincronizacao && (!max || r.ultima_sincronizacao > max) ? r.ultima_sincronizacao : max),
+    null
+  )
 
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -168,17 +197,35 @@ function TemplatesTab({ supabase }: { supabase: ReturnType<typeof createClient> 
     <>
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-4">
-          <p className="text-sm" style={muted}>
-            {rows.length} template{rows.length !== 1 ? 's' : ''} cadastrado{rows.length !== 1 ? 's' : ''}
-          </p>
-          <button
-            onClick={openNew}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-85"
-            style={{ background: 'var(--color-green-primary)', color: '#fff' }}
-          >
-            <Plus className="h-4 w-4" />
-            Novo template
-          </button>
+          <div>
+            <p className="text-sm" style={muted}>
+              {rows.length} template{rows.length !== 1 ? 's' : ''} cadastrado{rows.length !== 1 ? 's' : ''}
+            </p>
+            <p className="text-[11px]" style={muted}>
+              {ultimaSync
+                ? `Última sincronização: ${new Date(ultimaSync).toLocaleString('pt-BR')}`
+                : 'Sincroniza automaticamente todo dia às 6h.'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-85 disabled:opacity-50"
+              style={{ background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}
+            >
+              <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Sincronizando...' : 'Sincronizar com a Meta'}
+            </button>
+            <button
+              onClick={openNew}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-85"
+              style={{ background: 'var(--color-green-primary)', color: '#fff' }}
+            >
+              <Plus className="h-4 w-4" />
+              Novo template
+            </button>
+          </div>
         </div>
 
         <div className="rounded-xl overflow-hidden" style={card}>
@@ -232,18 +279,6 @@ function TemplatesTab({ supabase }: { supabase: ReturnType<typeof createClient> 
                         >
                           <Pencil className="h-3 w-3" />
                           Editar
-                        </button>
-                        <button
-                          onClick={() =>
-                            toast.info(
-                              'Verifique o status deste template diretamente no painel Meta Business.'
-                            )
-                          }
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-opacity hover:opacity-70"
-                          style={{ background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}
-                        >
-                          <RefreshCw className="h-3 w-3" />
-                          Sincronizar
                         </button>
                       </div>
                     </td>
