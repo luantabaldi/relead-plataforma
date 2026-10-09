@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { findBlocked, isBlockedIn } from '@/lib/blacklist'
 
 interface LeadDoCsv {
   nome: string
@@ -36,6 +38,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'leads[] não pode estar vazio' }, { status: 400 })
     }
 
+    // Blacklist: revalidada no servidor (o filtro do cliente pode ser burlado).
+    // Falha fechada: sem sessão ou sem conseguir consultar, nada é enviado.
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'Não autenticado' }, { status: 401 })
+    }
+    let blocked: Set<string>
+    try {
+      blocked = await findBlocked(supabase, body.leads.map((l) => l.telefone))
+    } catch (err) {
+      return NextResponse.json(
+        { success: false, error: err instanceof Error ? err.message : 'Falha ao consultar blacklist' },
+        { status: 500 }
+      )
+    }
+    const leadsPermitidos = body.leads.filter((l) => !isBlockedIn(blocked, l.telefone))
+    const removidos = body.leads.length - leadsPermitidos.length
+    if (leadsPermitidos.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Todos os leads estão na blacklist. Nenhum disparo foi feito.' },
+        { status: 422 }
+      )
+    }
+    body.leads = leadsPermitidos
+
     const webhookUrl = process.env.N8N_WEBHOOK_DISPARO
     if (!webhookUrl) {
       return NextResponse.json(
@@ -62,7 +90,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, enviados: body.leads.length, removidos })
   } catch (err) {
     return NextResponse.json(
       { success: false, error: err instanceof Error ? err.message : 'Erro desconhecido' },

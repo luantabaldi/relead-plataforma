@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Plus, Pencil, RefreshCw, X, Loader2, MessageSquare, Wifi } from 'lucide-react'
+import { Plus, Pencil, RefreshCw, X, Loader2, MessageSquare, Wifi, Ban, Trash2, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import StatusPill from '@/components/StatusPill'
+import { normalizeTelefone } from '@/lib/blacklist'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,7 +23,15 @@ type Instancia = {
   status: string
 }
 
-type Tab = 'templates' | 'instancias'
+type Bloqueado = {
+  id: string
+  telefone: string
+  nome: string | null
+  motivo: string | null
+  data_bloqueio: string | null
+}
+
+type Tab = 'templates' | 'instancias' | 'bloqueados'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -505,6 +514,188 @@ function InstanciasTab({ supabase }: { supabase: ReturnType<typeof createClient>
   )
 }
 
+// ── Bloqueados tab ────────────────────────────────────────────────────────────
+
+function BloqueadosTab({ supabase }: { supabase: ReturnType<typeof createClient> }) {
+  const [rows, setRows] = useState<Bloqueado[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busca, setBusca] = useState('')
+  const [modal, setModal] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [removingId, setRemovingId] = useState<string | null>(null)
+  const telRef = useRef<HTMLInputElement>(null)
+  const nomeRef = useRef<HTMLInputElement>(null)
+  const motivoRef = useRef<HTMLInputElement>(null)
+
+  const load = async () => {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('blacklist')
+      .select('id, telefone, nome, motivo, data_bloqueio')
+      .order('data_bloqueio', { ascending: false })
+      .limit(1000)
+    if (error) toast.error('Erro ao carregar blacklist')
+    setRows((data as Bloqueado[]) ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const telefone = normalizeTelefone(telRef.current?.value ?? '')
+    if (!/^\d{12,13}$/.test(telefone)) {
+      toast.error('Telefone inválido (esperado DDD + número, com ou sem 55)')
+      return
+    }
+    setSaving(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { error } = await supabase.from('blacklist').insert({
+        telefone,
+        nome: nomeRef.current?.value.trim() || null,
+        motivo: motivoRef.current?.value.trim() || null,
+        adicionado_por: user?.email ?? null,
+      })
+      if (error) {
+        toast.error(error.code === '23505' ? 'Este número já está na blacklist' : error.message)
+        return
+      }
+      toast.success('Número adicionado à blacklist')
+      setModal(false)
+      await load()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemove = async (r: Bloqueado) => {
+    if (!window.confirm(`Remover ${r.telefone} da blacklist? Ele voltará a poder receber disparos.`)) return
+    setRemovingId(r.id)
+    const { error } = await supabase.from('blacklist').delete().eq('id', r.id)
+    setRemovingId(null)
+    if (error) { toast.error(error.message); return }
+    toast.success('Removido da blacklist')
+    await load()
+  }
+
+  const termo = busca.trim().toLowerCase()
+  const filtradas = termo
+    ? rows.filter(r =>
+        [r.telefone, r.nome, r.motivo].some(v => (v ?? '').toLowerCase().includes(termo))
+      )
+    : rows
+
+  const muted = { color: 'var(--color-text-secondary)' }
+  const card = { background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }
+
+  return (
+    <>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2" style={muted} />
+            <input
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              placeholder="Buscar telefone, nome ou motivo"
+              className={`${inputCls} pl-9`}
+              style={inputStyle}
+            />
+          </div>
+          <button
+            onClick={() => setModal(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-85"
+            style={{ background: 'var(--color-green-primary)', color: '#fff' }}
+          >
+            <Plus className="h-4 w-4" />
+            Adicionar número
+          </button>
+        </div>
+        <p className="text-sm" style={muted}>
+          {rows.length} número{rows.length !== 1 ? 's' : ''} bloqueado{rows.length !== 1 ? 's' : ''}. Eles são removidos automaticamente de todo disparo.
+        </p>
+
+        <div className="rounded-xl overflow-hidden" style={card}>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-5 w-5 animate-spin" style={muted} />
+            </div>
+          ) : filtradas.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-14 gap-2">
+              <Ban className="h-8 w-8 opacity-30" style={muted} />
+              <p className="text-sm" style={muted}>
+                {rows.length === 0 ? 'Nenhum número na blacklist' : 'Nenhum resultado para a busca'}
+              </p>
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
+                  {['Telefone', 'Nome', 'Motivo', 'Bloqueado em', ''].map((h, i) => (
+                    <th
+                      key={i}
+                      className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider"
+                      style={muted}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtradas.map((r, i) => (
+                  <tr
+                    key={r.id}
+                    style={{ borderBottom: i < filtradas.length - 1 ? '1px solid var(--color-border)' : undefined }}
+                  >
+                    <td className="px-4 py-3 font-mono font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                      {r.telefone}
+                    </td>
+                    <td className="px-4 py-3" style={muted}>{r.nome ?? '—'}</td>
+                    <td className="px-4 py-3" style={muted}>{r.motivo ?? '—'}</td>
+                    <td className="px-4 py-3" style={muted}>
+                      {r.data_bloqueio ? new Date(r.data_bloqueio).toLocaleDateString('pt-BR') : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => handleRemove(r)}
+                        disabled={removingId === r.id}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-opacity hover:opacity-70 disabled:opacity-50"
+                        style={{ background: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border)' }}
+                      >
+                        {removingId === r.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                        Remover
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {modal && (
+        <Modal title="Adicionar à blacklist" onClose={() => setModal(false)}>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Field label="Telefone">
+              <input ref={telRef} placeholder="Ex: 5548999999999" className={inputCls} style={inputStyle} autoFocus />
+            </Field>
+            <Field label="Nome (opcional)">
+              <input ref={nomeRef} className={inputCls} style={inputStyle} />
+            </Field>
+            <Field label="Motivo (opcional)">
+              <input ref={motivoRef} placeholder="Ex: Pediu para remover o número" className={inputCls} style={inputStyle} />
+            </Field>
+            <SaveButton loading={saving} />
+          </form>
+        </Modal>
+      )}
+    </>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ConfiguracoesPage() {
@@ -520,7 +711,7 @@ export default function ConfiguracoesPage() {
           Configurações
         </h1>
         <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-          Gerencie templates e instâncias WhatsApp
+          Gerencie templates, instâncias WhatsApp e a blacklist de opt-out
         </p>
       </div>
 
@@ -530,6 +721,7 @@ export default function ConfiguracoesPage() {
           [
             { key: 'templates' as Tab, label: 'Templates' },
             { key: 'instancias' as Tab, label: 'Instâncias WhatsApp' },
+            { key: 'bloqueados' as Tab, label: 'Bloqueados' },
           ]
         ).map(({ key, label }) => (
           <button
@@ -548,11 +740,9 @@ export default function ConfiguracoesPage() {
       </div>
 
       {/* Content */}
-      {tab === 'templates' ? (
-        <TemplatesTab supabase={supabase} />
-      ) : (
-        <InstanciasTab supabase={supabase} />
-      )}
+      {tab === 'templates' && <TemplatesTab supabase={supabase} />}
+      {tab === 'instancias' && <InstanciasTab supabase={supabase} />}
+      {tab === 'bloqueados' && <BloqueadosTab supabase={supabase} />}
     </div>
   )
 }

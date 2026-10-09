@@ -19,6 +19,9 @@ const colorMap: Record<PillVariant, Record<string, string>> = {
   },
   template: {
     'Aprovado': 'bg-green-50 text-green-700 border-green-200',
+    'APPROVED': 'bg-green-50 text-green-700 border-green-200',
+    'PENDING': 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    'REJECTED': 'bg-red-50 text-red-700 border-red-200',
     'em_revisao': 'bg-yellow-50 text-yellow-700 border-yellow-200',
     'Em Revisão': 'bg-yellow-50 text-yellow-700 border-yellow-200',
     'Rejeitado': 'bg-red-50 text-red-700 border-red-200',

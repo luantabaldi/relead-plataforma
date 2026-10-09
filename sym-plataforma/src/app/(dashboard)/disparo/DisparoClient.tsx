@@ -6,6 +6,7 @@ import Papa from 'papaparse'
 import { UploadCloud, Check, AlertCircle, ChevronRight, Loader2, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
+import { findBlocked, isBlockedIn } from '@/lib/blacklist'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -183,6 +184,8 @@ function Step1({ initialNome, onNext }: Step1Props) {
 interface Step2Props {
   parsedRows: ParsedRow[]
   validLeads: LeadDoCsv[]
+  blacklistRemoved: number
+  checkingBlacklist: boolean
   isDragging: boolean
   onSetDragging: (v: boolean) => void
   onFileParsed: (rows: ParsedRow[], valid: LeadDoCsv[]) => void
@@ -193,6 +196,8 @@ interface Step2Props {
 function Step2({
   parsedRows,
   validLeads,
+  blacklistRemoved,
+  checkingBlacklist,
   isDragging,
   onSetDragging,
   onFileParsed,
@@ -286,6 +291,21 @@ function Step2({
               <span className="text-xs" style={muted}>(removidos automaticamente)</span>
             </>
           )}
+          {checkingBlacklist && (
+            <>
+              <span style={muted}>·</span>
+              <span className="text-xs" style={muted}>verificando blacklist...</span>
+            </>
+          )}
+          {blacklistRemoved > 0 && (
+            <>
+              <span style={muted}>·</span>
+              <span style={{ color: '#B45309' }}>
+                <strong>{blacklistRemoved}</strong> na blacklist
+              </span>
+              <span className="text-xs" style={muted}>(removidos automaticamente)</span>
+            </>
+          )}
         </div>
       )}
 
@@ -362,9 +382,9 @@ function Step2({
         </button>
         <button
           onClick={onNext}
-          disabled={validLeads.length === 0}
+          disabled={validLeads.length === 0 || checkingBlacklist}
           className="flex items-center gap-1.5 px-6 py-2.5 rounded-lg text-sm font-semibold"
-          style={btnPrimaryStyle(validLeads.length === 0)}
+          style={btnPrimaryStyle(validLeads.length === 0 || checkingBlacklist)}
         >
           Próximo <ChevronRight className="h-4 w-4" />
         </button>
@@ -397,10 +417,8 @@ function Step3({
   onBack, onNext,
 }: Step3Props) {
   const [idFocused, setIdFocused] = useState(false)
-  const [tmplFocused, setTmplFocused] = useState(false)
   const [linkFocused, setLinkFocused] = useState(false)
 
-  const useTextTemplate = approvedTemplates !== null && approvedTemplates.length === 0
   const step3Valid = template.trim() !== '' && idEmpreendimento.trim() !== '' && tipoCampanha !== ''
 
   return (
@@ -414,17 +432,13 @@ function Step3({
           <div className={inputCls} style={{ ...inputStyle(), opacity: 0.6 }}>
             Carregando templates...
           </div>
-        ) : useTextTemplate ? (
-          <input
-            type="text"
-            value={template}
-            onChange={(e) => onTemplateChange(e.target.value)}
-            onFocus={() => setTmplFocused(true)}
-            onBlur={() => setTmplFocused(false)}
-            placeholder="Nome do template"
+        ) : approvedTemplates.length === 0 ? (
+          <div
             className={inputCls}
-            style={inputStyle(tmplFocused)}
-          />
+            style={{ ...inputStyle(), color: '#B45309' }}
+          >
+            Nenhum template aprovado encontrado. Sincronize os templates em Configurações.
+          </div>
         ) : (
           <select
             value={template}
@@ -764,6 +778,8 @@ export default function DisparoClient() {
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([])
   const [validLeads, setValidLeads] = useState<LeadDoCsv[]>([])
   const [isDragging, setIsDragging] = useState(false)
+  const [blacklistRemoved, setBlacklistRemoved] = useState(0)
+  const [checkingBlacklist, setCheckingBlacklist] = useState(false)
 
   // Step 3
   const [template, setTemplate] = useState('')
@@ -782,13 +798,32 @@ export default function DisparoClient() {
     supabase
       .from('templates_wpp')
       .select('nome')
-      .eq('status_meta', 'Aprovado')
+      .in('status_meta', ['APPROVED', 'Aprovado'])
       .order('nome')
       .then(({ data, error }) => {
         const names = error ? [] : (data?.map((t) => t.nome).filter(Boolean) ?? [])
         setApprovedTemplates(names)
       })
   }, [step])
+
+  async function handleFileParsed(rows: ParsedRow[], valid: LeadDoCsv[]) {
+    setParsedRows(rows)
+    setValidLeads([])
+    setBlacklistRemoved(0)
+    if (valid.length === 0) return
+    setCheckingBlacklist(true)
+    try {
+      const blocked = await findBlocked(supabase, valid.map((l) => l.telefone))
+      const allowed = valid.filter((l) => !isBlockedIn(blocked, l.telefone))
+      setBlacklistRemoved(valid.length - allowed.length)
+      setValidLeads(allowed)
+    } catch {
+      // Falha fechada: sem conseguir checar a blacklist, nenhum lead segue adiante.
+      toast.error('Não foi possível verificar a blacklist. Tente carregar o arquivo novamente.')
+    } finally {
+      setCheckingBlacklist(false)
+    }
+  }
 
   function updateObservacao(idx: number, obs: string) {
     setValidLeads((prev) => prev.map((l, i) => (i === idx ? { ...l, observacao: obs } : l)))
@@ -816,7 +851,10 @@ export default function DisparoClient() {
         toast.error(data.error ?? 'Erro ao iniciar o disparo. Tente novamente.')
         return
       }
-      router.push(`/disparo/monitoramento?campanha=${encodeURIComponent(nome)}&total=${validLeads.length}`)
+      if (data.removidos > 0) {
+        toast.warning(`${data.removidos} lead(s) removidos pela blacklist antes do envio.`)
+      }
+      router.push(`/disparo/monitoramento?campanha=${encodeURIComponent(nome)}&total=${data.enviados ?? validLeads.length}`)
     } catch {
       toast.error('Erro de conexão. Verifique sua internet e tente novamente.')
     } finally {
@@ -838,9 +876,11 @@ export default function DisparoClient() {
           <Step2
             parsedRows={parsedRows}
             validLeads={validLeads}
+            blacklistRemoved={blacklistRemoved}
+            checkingBlacklist={checkingBlacklist}
             isDragging={isDragging}
             onSetDragging={setIsDragging}
-            onFileParsed={(rows, valid) => { setParsedRows(rows); setValidLeads(valid) }}
+            onFileParsed={handleFileParsed}
             onBack={() => setStep(0)}
             onNext={() => setStep(2)}
           />
