@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { Dashboard } from '../components/Dashboard';
 import { DispatchForm } from '../components/DispatchForm';
 import { TopNav } from '../components/TopNav';
@@ -1785,7 +1785,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                     horizontal pra respirar), as 3 leituras de composição/comparação
                     dividem a linha de baixo em colunas iguais. */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6" style={{ marginTop: 24 }}>
-                  <div className="md:col-span-3">
+                  <div className="md:col-span-3 min-w-0">
                     <LineChart conversations={conversations} dataInicio={filters.dataInicio} dataFim={filters.dataFim} />
                   </div>
                   <FunnelChart conversations={conversations} />
@@ -2317,7 +2317,37 @@ function monotonePath(pts: { x: number; y: number }[]): string {
   return path;
 }
 
-const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim }) => {
+/**
+ * Largura real do contêiner. O SVG dos gráficos usava viewBox fixo (500x200): num cartão de
+ * 1.800 px ele ficava pequeno no meio, com espaço vazio dos dois lados. Com a largura real, o
+ * desenho ocupa o cartão e as fontes mantêm o tamanho.
+ */
+function useElementWidth<T extends HTMLElement>(fallback = 600) {
+  const ref = useRef<T>(null);
+  const [width, setWidth] = useState(fallback);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => {
+      const w = Math.round(el.clientWidth);
+      if (w > 0) setWidth(Math.max(280, w));
+    };
+    update();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', update);
+      return () => window.removeEventListener('resize', update);
+    }
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return [ref, width] as const;
+}
+
+export const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim }) => {
+  const [wrapRef, width] = useElementWidth<HTMLDivElement>(600);
   const dates: string[] = [];
   const currentDate = new Date(dataInicio);
   const endDate = new Date(dataFim);
@@ -2346,12 +2376,12 @@ const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim })
   const dataPoints = Object.entries(counts);
   const maxVal = Math.max(...Object.values(counts), 4);
 
-  const width = 500;
-  const height = 200;
-  const paddingLeft = 40;
-  const paddingRight = 20;
-  const paddingTop = 20;
-  const paddingBottom = 30;
+  // Mais baixo: um dia a dia de poucos picos não precisa de 200 px de altura.
+  const height = 150;
+  const paddingLeft = 36;
+  const paddingRight = 12;
+  const paddingTop = 10;
+  const paddingBottom = 24;
 
   const chartWidth = width - paddingLeft - paddingRight;
   const chartHeight = height - paddingTop - paddingBottom;
@@ -2367,17 +2397,26 @@ const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim })
     ? `${linePath} L ${points[points.length - 1].x} ${height - paddingBottom} L ${points[0].x} ${height - paddingBottom} Z`
     : '';
 
-  const labelInterval = Math.max(1, Math.floor(dataPoints.length / 5));
+  // Rótulos de data na medida da largura: ~1 a cada 64 px.
+  const maxLabels = Math.max(3, Math.floor(chartWidth / 64));
+  const labelInterval = Math.max(1, Math.ceil(dataPoints.length / maxLabels));
   const [hoveredPoint, setHoveredPoint] = useState<typeof points[0] | null>(null);
+  const totalNoPeriodo = dataPoints.reduce((sum, [, v]) => sum + v, 0);
+  const diasComDisparo = dataPoints.filter(([, v]) => v > 0).length;
 
   return (
-    <div className="card" style={{ padding: 20, flex: 1, minWidth: 280, minHeight: 280, position: 'relative' }}>
-      <h4 className="t-serif" style={{ fontSize: 16, margin: '0 0 16px 0', color: 'var(--navy-700)' }}>
-        Disparos por dia
-      </h4>
+    <div className="card" style={{ padding: '16px 20px', flex: 1, minWidth: 0, position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, margin: '0 0 8px 0' }}>
+        <h4 className="t-serif" style={{ fontSize: 16, margin: 0, color: 'var(--navy-700)' }}>
+          Disparos por dia
+        </h4>
+        <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)' }}>
+          {totalNoPeriodo} envios em {diasComDisparo} dia{diasComDisparo !== 1 ? 's' : ''} com disparo
+        </span>
+      </div>
 
-      <div style={{ position: 'relative', width: '100%', height: height }}>
-        <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" style={{ overflow: 'visible' }}>
+      <div ref={wrapRef} style={{ position: 'relative', width: '100%', height: height }}>
+        <svg width={width} height={height} style={{ display: 'block', overflow: 'visible' }}>
           <defs>
             <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--chart-line)" stopOpacity="0.22" />
@@ -2385,7 +2424,7 @@ const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim })
             </linearGradient>
           </defs>
 
-          {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
+          {[0, 0.5, 1].map((ratio, idx) => {
             const y = height - paddingBottom - ratio * chartHeight;
             const gridVal = Math.round(ratio * maxVal);
             return (
@@ -2433,7 +2472,7 @@ const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim })
               <text
                 key={idx}
                 x={p.x}
-                y={height - 10}
+                y={height - 6}
                 className="t-mono"
                 fontSize="9"
                 fill="var(--ink-50)"
@@ -2477,8 +2516,8 @@ const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim })
           <div
             style={{
               position: 'absolute',
-              left: `${(hoveredPoint.x / width) * 100}%`,
-              top: `${(hoveredPoint.y / height) * 100 - 32}%`,
+              left: hoveredPoint.x,
+              top: Math.max(0, hoveredPoint.y - 34),
               transform: 'translateX(-50%)',
               background: 'var(--chart-line)',
               color: '#fff',
@@ -2501,7 +2540,7 @@ const LineChart: React.FC<ChartProps> = ({ conversations, dataInicio, dataFim })
   );
 };
 
-const CampaignBarChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
+export const CampaignBarChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
   const prospeccao = conversations.filter((c) => c.dispatch.tipo_campanha === 'prospeccao');
   const reativacao = conversations.filter((c) => c.dispatch.tipo_campanha === 'reativacao');
 
@@ -2518,13 +2557,13 @@ const CampaignBarChart: React.FC<{ conversations: any[] }> = ({ conversations })
   const rMet = getMetrics(reativacao);
 
   return (
-    <div className="card" style={{ padding: 20, flex: 1, minWidth: 280, minHeight: 280, display: 'flex', flexDirection: 'column' }}>
-      <h4 className="t-serif" style={{ fontSize: 16, margin: '0 0 4px 0', color: 'var(--navy-700)' }}>
+    <div className="card" style={{ padding: '16px 20px', flex: 1, minWidth: 280, display: 'flex', flexDirection: 'column' }}>
+      <h4 className="t-serif" style={{ fontSize: 16, margin: '0 0 2px 0', color: 'var(--navy-700)' }}>
         Taxa de resposta por campanha
       </h4>
-      <p className="t-caption" style={{ margin: '0 0 20px 0' }}>Trilho cinza = 100% dos leads disparados</p>
+      <p className="t-caption" style={{ margin: '0 0 14px 0' }}>Trilho cinza = 100% dos leads disparados</p>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24, flex: 1, justifyContent: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
             <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink-300)' }}>Prospecção</span>
@@ -2573,7 +2612,7 @@ const CampaignBarChart: React.FC<{ conversations: any[] }> = ({ conversations })
   );
 };
 
-const FunnelChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
+export const FunnelChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
   const disparados = conversations.length;
   const responderam = conversations.filter((c) =>
     ['respondido', 'interessado', 'sem_interesse'].includes(c.dispatch.status)
@@ -2591,13 +2630,13 @@ const FunnelChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
   const FLOOR = 3;
   const bands = [
     { label: 'Disparados', count: disparados, percentLabel: '100%', width: 100, color: 'var(--chart-funnel-1)' },
-    { label: 'Responderam', count: responderam, percentLabel: `${respPercent}% dos disparados`, width: Math.max(FLOOR, respPercent), color: 'var(--chart-funnel-2)' },
-    { label: 'Interessados', count: interessados, percentLabel: `${relIntPercent}% dos que responderam`, width: Math.max(FLOOR, intPercent), color: 'var(--chart-funnel-3)' },
+    { label: 'Responderam', count: responderam, percentLabel: `${respPercent}%`, width: Math.max(FLOOR, respPercent), color: 'var(--chart-funnel-2)' },
+    { label: 'Interessados', count: interessados, percentLabel: `${intPercent}%`, width: Math.max(FLOOR, intPercent), color: 'var(--chart-funnel-3)' },
   ];
 
   return (
-    <div className="card" style={{ padding: 20, flex: 1, minWidth: 280, minHeight: 280, display: 'flex', flexDirection: 'column' }}>
-      <h4 className="t-serif" style={{ fontSize: 16, margin: '0 0 16px 0', color: 'var(--navy-700)' }}>
+    <div className="card" style={{ padding: '16px 20px', flex: 1, minWidth: 280, display: 'flex', flexDirection: 'column' }}>
+      <h4 className="t-serif" style={{ fontSize: 16, margin: '0 0 12px 0', color: 'var(--navy-700)' }}>
         Funil de conversão
       </h4>
 
@@ -2606,7 +2645,7 @@ const FunnelChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
           Sem disparos no período selecionado
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, justifyContent: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {bands.map((band, idx) => (
             <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               {/* Label + count sit to the left of the block, not inside it —
@@ -2624,18 +2663,21 @@ const FunnelChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
                 />
               </div>
               {/* % reading sits to the right, aligned regardless of block width. */}
-              <div style={{ width: 92, flexShrink: 0 }}>
-                <span className="t-mono" style={{ fontSize: 10, color: 'var(--ink-50)' }}>{band.percentLabel}</span>
+              <div style={{ width: 40, flexShrink: 0 }}>
+                <span className="t-mono tnum" style={{ fontSize: 11, color: 'var(--ink-50)' }}>{band.percentLabel}</span>
               </div>
             </div>
           ))}
+          <p className="t-caption" style={{ margin: '2px 0 0' }}>
+            % sobre os disparados · {relIntPercent}% de quem respondeu se interessou
+          </p>
         </div>
       )}
     </div>
   );
 };
 
-const StatusBarChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
+export const StatusBarChart: React.FC<{ conversations: any[] }> = ({ conversations }) => {
   const counts: Record<string, number> = {
     interessado: 0,
     respondido: 0,
@@ -2686,7 +2728,7 @@ const StatusBarChart: React.FC<{ conversations: any[] }> = ({ conversations }) =
   const maxVal = Math.max(...rows.map(([, val]) => val), 1);
 
   return (
-    <div className="card" style={{ padding: 20, flex: 1, minWidth: 280, minHeight: 280, display: 'flex', flexDirection: 'column' }}>
+    <div className="card" style={{ padding: '16px 20px', flex: 1, minWidth: 280, display: 'flex', flexDirection: 'column' }}>
       <h4 className="t-serif" style={{ fontSize: 16, margin: '0 0 12px 0', color: 'var(--navy-700)' }}>
         Distribuição por status
       </h4>
@@ -2698,7 +2740,7 @@ const StatusBarChart: React.FC<{ conversations: any[] }> = ({ conversations }) =
       ) : (
         <>
           {enviadoCount > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', marginBottom: 14, borderRadius: 10, background: 'var(--paper-50)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', marginBottom: 10, borderRadius: 10, background: 'var(--paper-50)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: colors.enviado, flexShrink: 0 }} />
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-200)' }}>
@@ -2714,7 +2756,7 @@ const StatusBarChart: React.FC<{ conversations: any[] }> = ({ conversations }) =
           {/* Barras horizontais, maior → menor — fatias de valor próximo
               (ex. 100 vs 81 vs 84) ficam comparáveis por comprimento, o que
               um donut não consegue transmitir. */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, justifyContent: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {rows.map(([key, val]) => {
               const pctOfTotal = total ? Math.round((val / total) * 100) : 0;
               const widthPct = Math.max(3, (val / maxVal) * 100);
