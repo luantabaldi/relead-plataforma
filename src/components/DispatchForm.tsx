@@ -1,8 +1,38 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Icon } from './Icon';
 import { TemplateSelect } from './TemplateSelect';
 import { WizardPreviewPanel, CsvStats, CostEstimate } from './WizardPreviewPanel';
+import { useBlacklist } from '../hooks/useBlacklist';
+import { useCotacaoUsd } from '../hooks/useCotacaoUsd';
+import { chaveTelefone } from '../lib/telefone';
+import { agentePadraoDoTipo, tipoCampanhaDoAgente, AgenteOption } from '../lib/agentes';
+import { estimarCustoPorTarifa, Tarifa } from '../lib/custo';
+
+interface NumeroOption {
+  phone_number_id: string;
+  numero_display: string | null;
+  apelido: string | null;
+  quality_rating: string | null;
+}
+
+const WEBHOOK_DISPARO_PADRAO = 'https://n8n.srv1214309.hstgr.cloud/webhook/disparo-manual-planilha';
+
+/**
+ * Cada número pode ter o próprio workflow de disparo (a instância de envio fica
+ * no workflow). Convenção: REACT_APP_N8N_WEBHOOK_DISPARO_<phone_number_id>; sem
+ * ela, usa o webhook padrão. O CRA embute todas as REACT_APP_* no build, então
+ * a variável precisa existir na Vercel antes do deploy.
+ */
+function webhookDisparoDoNumero(phoneNumberId: string): string {
+  const env = process.env as Record<string, string | undefined>;
+  return env[`REACT_APP_N8N_WEBHOOK_DISPARO_${phoneNumberId}`] || WEBHOOK_DISPARO_PADRAO;
+}
+
+const rotuloNumero = (n: NumeroOption): string => {
+  const base = n.apelido ? `${n.apelido} · ${n.numero_display ?? n.phone_number_id}` : (n.numero_display ?? n.phone_number_id);
+  return n.quality_rating ? `${base} (qualidade ${n.quality_rating})` : base;
+};
 
 export interface Lead {
   nome: string;
@@ -38,7 +68,22 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
     empreendimentoNome: '',
     observacao: '',
     imagemUrl: '',
+    numeroId: '',
+    agenteSlug: '',
   });
+
+  // Leads que a checagem final da blacklist (no momento do envio) ainda removeu.
+  const [removidosNoEnvio, setRemovidosNoEnvio] = useState(0);
+  const [numeros, setNumeros] = useState<NumeroOption[]>([]);
+  const [agentes, setAgentes] = useState<AgenteOption[]>([]);
+  const [tarifas, setTarifas] = useState<Tarifa[]>([]);
+  const [isLoadingOpcoes, setIsLoadingOpcoes] = useState(true);
+  const usdBrl = useCotacaoUsd();
+  const { entries: blacklistEntries, isLoading: isLoadingBlacklist, error: blacklistError } = useBlacklist();
+  const blockedKeys = useMemo(
+    () => new Set(blacklistEntries.map((e) => chaveTelefone(e.telefone))),
+    [blacklistEntries]
+  );
 
   const [leads, setLeads] = useState<Lead[]>([]);
   const [fileName, setFileName] = useState('');
@@ -52,7 +97,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
   const [isLoadingEmpreendimentos, setIsLoadingEmpreendimentos] = useState(true);
 
-  const [templates, setTemplates] = useState<Array<{ id: string; nome: string; tipo?: string; status_meta?: string; componentes?: any[] }>>([]);
+  const [templates, setTemplates] = useState<Array<{ id: string; nome: string; tipo?: string; status_meta?: string; componentes?: any[]; categoria?: string }>>([]);
   const [step, setStep] = useState(1);
   const [maxStepReached, setMaxStepReached] = useState(1);
   const [empreendimentosList, setEmpreendimentosList] = useState<Array<{ id: string; nome: string; descricao_ia: string; ativo: boolean }>>([]);
@@ -80,7 +125,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
         if (error) throw error;
 
         if (data && data.length > 0) {
-          setTemplates(data.map((t: any) => ({ id: t.id, nome: t.nome, tipo: t.tipo, status_meta: t.status_meta, componentes: t.componentes })));
+          setTemplates(data.map((t: any) => ({ id: t.id, nome: t.nome, tipo: t.tipo, status_meta: t.status_meta, componentes: t.componentes, categoria: t.categoria })));
         } else {
           setTemplates(TEMPLATES.map(t => ({ id: t.id, nome: t.name })));
         }
@@ -110,8 +155,41 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
       }
     };
 
+    // Números, agentes e tarifas: se algum falhar, o passo 1 avisa que falta a opção.
+    const loadOpcoes = async () => {
+      try {
+        setIsLoadingOpcoes(true);
+        const [num, ag, tar] = await Promise.all([
+          supabase
+            .from('numeros_whatsapp_status')
+            .select('phone_number_id, numero_display, apelido, quality_rating')
+            .eq('ativo', true)
+            .eq('status', 'CONNECTED')
+            .order('numero_display', { ascending: true }),
+          supabase.from('agentes').select('slug, nome, descricao, padrao').eq('ativo', true).order('nome', { ascending: true }),
+          supabase.from('meta_tarifas').select('categoria, preco_usd').eq('pais_codigo', 55),
+        ]);
+        const nums = (num.data || []) as NumeroOption[];
+        const ags = (ag.data || []) as AgenteOption[];
+        setNumeros(nums);
+        setAgentes(ags);
+        setTarifas((tar.data || []).map((t: any) => ({ categoria: t.categoria, preco_usd: Number(t.preco_usd) })));
+        // Com uma única opção, já deixa selecionada; as demais o operador escolhe.
+        setFormData((prev) => ({
+          ...prev,
+          numeroId: prev.numeroId || (nums.length === 1 ? nums[0].phone_number_id : ''),
+          agenteSlug: prev.agenteSlug || agentePadraoDoTipo(prev.campaignType, ags),
+        }));
+      } catch (err) {
+        console.warn('⚠️ Erro ao carregar números/agentes/tarifas:', err);
+      } finally {
+        setIsLoadingOpcoes(false);
+      }
+    };
+
     loadTemplates();
     loadEmpreendimentos();
+    loadOpcoes();
 
     return () => {
       try {
@@ -187,6 +265,19 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
   const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Sem a blacklist carregada não dá para saber quem pediu para sair: não segue.
+    if (isLoadingBlacklist) {
+      setStatus({ type: 'err', text: 'A blacklist ainda está carregando. Aguarde um instante e selecione o arquivo novamente.' });
+      e.target.value = '';
+      return;
+    }
+    if (blacklistError) {
+      setStatus({ type: 'err', text: 'Não foi possível verificar a blacklist. Recarregue a página antes de carregar os leads.' });
+      e.target.value = '';
+      return;
+    }
+
     setFileName(file.name);
 
     const reader = new FileReader();
@@ -233,16 +324,22 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
           parsedLeads.push({ nome, telefone: cleanedTelefone });
         });
 
-        setLeads(parsedLeads);
+        // Blacklist (opt-out): quem pediu para não receber nunca entra no disparo.
+        const allowedLeads = parsedLeads.filter((l) => !blockedKeys.has(chaveTelefone(l.telefone)));
+        const blacklistedCount = parsedLeads.length - allowedLeads.length;
+
+        setLeads(allowedLeads);
         setCsvStats({
           totalLines: dataLines.length,
-          validNumbers: parsedLeads.length,
+          validNumbers: allowedLeads.length,
           duplicatesRemoved: duplicateCount,
           invalidSkipped: skipped.length,
+          blacklisted: blacklistedCount,
         });
 
         const extras: string[] = [];
         if (duplicateCount > 0) extras.push(`${duplicateCount} duplicado(s) removido(s)`);
+        if (blacklistedCount > 0) extras.push(`${blacklistedCount} na blacklist removido(s)`);
         if (skipped.length > 0) {
           const linhas = skipped.length > 10
             ? `${skipped.slice(0, 10).join(', ')}… (+${skipped.length - 10})`
@@ -251,8 +348,8 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
         }
 
         setStatus({
-          type: parsedLeads.length === 0 ? 'err' : 'ok',
-          text: `${parsedLeads.length} leads válidos carregados.${extras.length ? ' ' + extras.join('; ') + '.' : ''}`,
+          type: allowedLeads.length === 0 ? 'err' : 'ok',
+          text: `${allowedLeads.length} leads válidos carregados.${extras.length ? ' ' + extras.join('; ') + '.' : ''}`,
         });
       } catch (err) {
         setCsvStats(null);
@@ -302,12 +399,16 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
     !!t?.componentes?.some((c) => c.type === 'HEADER' && c.format === 'IMAGE');
   const selectedTemplateForForm = templates.find((t) => t.id === formData.templateId);
   const needsImage = templateNeedsImage(selectedTemplateForForm);
+  // Custo estimado pela tarifa da Meta: leads × preço da categoria do template.
+  const custoTarifa = estimarCustoPorTarifa(leads.length, selectedTemplateForForm?.categoria, tarifas);
 
   // Valida cumulativamente o que é preciso pra alcançar `targetStep` — cada
   // passo checa as exigências de todos os passos anteriores a ele.
   const getBlockingError = (targetStep: number): string | null => {
-    if (targetStep >= 2 && !formData.campaignName.trim()) {
-      return 'Nome da campanha é obrigatório.';
+    if (targetStep >= 2) {
+      if (!formData.campaignName.trim()) return 'Nome da campanha é obrigatório.';
+      if (!formData.numeroId) return 'Selecione o número do disparo.';
+      if (!formData.agenteSlug) return 'Selecione o agente de mensagem.';
     }
     if (targetStep >= 3) {
       if (!formData.templateId) return 'Selecione um template de mensagem.';
@@ -348,9 +449,19 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
     setStep(n);
   };
 
+  // Se o n8n não aceitou o disparo, os leads gravados como "Pendente" são removidos —
+  // senão ficam órfãos e a campanha aparece "em andamento" sem nada rodando.
+  const desfazerLeadsPendentes = async (ids: string[]) => {
+    for (let i = 0; i < ids.length; i += 500) {
+      const { error } = await supabase.from('leads_reativacao').delete().in('id', ids.slice(i, i + 500));
+      if (error) console.error('❌ Falha ao desfazer leads pendentes:', error);
+    }
+  };
+
   const executeDispatch = async () => {
     setIsLoading(true);
     setStatus(null);
+    let insertedIds: string[] = [];
 
     try {
       if (!formData.campaignName.trim()) throw new Error('Nome da campanha é obrigatório.');
@@ -365,10 +476,28 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
         throw new Error('Este template tem imagem no cabeçalho. Faça o upload da imagem antes de continuar.');
       }
 
-      const leadsToInsert = leads.map((lead) => ({
+      if (!formData.numeroId) throw new Error('Selecione o número do disparo.');
+      if (!formData.agenteSlug) throw new Error('Selecione o agente de mensagem.');
+
+      // Blacklist: consulta de novo na hora do envio (alguém pode ter sido bloqueado
+      // depois que o CSV foi carregado). Se a consulta falhar, nada é enviado.
+      const { data: blacklistAtual, error: blacklistErr } = await supabase
+        .from('blacklist')
+        .select('telefone');
+      if (blacklistErr) {
+        throw new Error('Não foi possível verificar a blacklist. Nenhuma mensagem foi enviada; tente novamente.');
+      }
+      const chavesBloqueadas = new Set((blacklistAtual || []).map((r: any) => chaveTelefone(r.telefone)));
+      const leadsPermitidos = leads.filter((l) => !chavesBloqueadas.has(chaveTelefone(l.telefone)));
+      const removidosAgora = leads.length - leadsPermitidos.length;
+      if (leadsPermitidos.length === 0) {
+        throw new Error('Todos os leads desta lista estão na blacklist. Nenhuma mensagem foi enviada.');
+      }
+
+      const leadsToInsert = leadsPermitidos.map((lead) => ({
         telefone: lead.telefone,
         nome_lead: lead.nome,
-        tipo_campanha: formData.campaignType,
+        tipo_campanha: tipoCampanhaDoAgente(formData.agenteSlug),
         status_reativacao: 'Pendente',
         data_envio: null,
         mensagem_enviada: selectedTemplate?.nome || '',
@@ -377,6 +506,8 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
         empreendimento_id: formData.empreendimentoId,
         empreendimento_nome: formData.empreendimentoNome,
         historico_mensagens: null, // inicia nulo, n8n preenche no disparo
+        phone_number_id: formData.numeroId,
+        agente_slug: formData.agenteSlug,
       }));
 
       // Inserir no Supabase retornando representação com IDs gerados
@@ -386,6 +517,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
         .select('id, nome_lead, status_reativacao, telefone');
 
       if (insertError) throw new Error(insertError.message);
+      insertedIds = (insertedData || []).map((r: any) => r.id);
 
       // Cancelar qualquer canal de progresso ativo anterior
       try {
@@ -408,11 +540,12 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
       }
 
       // Inicializa o estado de progresso visual
+      setRemovidosNoEnvio(removidosAgora);
       setProgress({
         active: true,
         campaignName: formData.campaignName,
-        total: leads.length,
-        pending: leads.length,
+        total: leadsPermitidos.length,
+        pending: leadsPermitidos.length,
         success: 0,
         error: 0,
         latestEvents: [],
@@ -473,8 +606,9 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
       channelRef.current = channel;
 
       // Acionar o Webhook do n8n para rodar o workflow WK3 de disparo manual
+      let webhookErro: string | null = null;
       try {
-        const webhookResponse = await fetch('https://n8n.srv1214309.hstgr.cloud/webhook/disparo-manual-planilha', {
+        const webhookResponse = await fetch(webhookDisparoDoNumero(formData.numeroId), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -482,17 +616,32 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
           body: JSON.stringify({
             status: 'iniciar',
             nome_campanha: formData.campaignName,
-            tipo_campanha: formData.campaignType,
+            tipo_campanha: tipoCampanhaDoAgente(formData.agenteSlug),
             template_id: formData.templateId,
             imagem_url: formData.imagemUrl.trim() || null,
+            phone_number_id: formData.numeroId,
+            agente_slug: formData.agenteSlug,
           }),
         });
 
         if (!webhookResponse.ok) {
-          console.warn('⚠️ Webhook do n8n respondeu com status:', webhookResponse.status);
+          webhookErro = `O workflow de disparo respondeu com erro (${webhookResponse.status}).`;
         }
       } catch (webhookErr) {
         console.error('⚠️ Falha ao acionar o webhook do n8n:', webhookErr);
+        webhookErro = 'Não foi possível contatar o workflow de disparo.';
+      }
+
+      if (webhookErro) {
+        try {
+          if (channelRef.current) supabase.removeChannel(channelRef.current);
+        } catch (err) {
+          console.warn('⚠️ Erro ao remover canal de progresso:', err);
+        }
+        channelRef.current = null;
+        setProgress({ active: false, campaignName: '', total: 0, pending: 0, success: 0, error: 0, latestEvents: [] });
+        await desfazerLeadsPendentes(insertedIds);
+        throw new Error(`${webhookErro} Os leads desta campanha foram descartados; tente novamente.`);
       }
 
       setFormData({
@@ -504,6 +653,8 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
         empreendimentoNome: '',
         observacao: '',
         imagemUrl: '',
+        numeroId: numeros.length === 1 ? numeros[0].phone_number_id : '',
+        agenteSlug: agentePadraoDoTipo('prospeccao', agentes),
       });
       setLeads([]);
       setFileName('');
@@ -523,7 +674,8 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
     }
   };
 
-  const set = (patch: Partial<typeof formData>) => setFormData({ ...formData, ...patch });
+  // Atualização funcional: carregamentos assíncronos (número, agente) não são sobrescritos por um estado antigo.
+  const set = (patch: Partial<typeof formData>) => setFormData((prev) => ({ ...prev, ...patch }));
 
   if (progress.active) {
     const pct = progress.total > 0 ? Math.round(((progress.total - progress.pending) / progress.total) * 100) : 0;
@@ -554,6 +706,13 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
             {isFinished ? 'Concluído' : 'Disparando'}
           </span>
         </div>
+
+        {removidosNoEnvio > 0 && (
+          <div className="banner ok" style={{ marginTop: -8 }}>
+            <Icon name="check-circle" size={18} />
+            {removidosNoEnvio} lead(s) da lista estavam na blacklist e foram removidos antes do envio.
+          </div>
+        )}
 
         {/* Barra de Progresso */}
         <div style={{ marginTop: 8 }}>
@@ -756,12 +915,78 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
                 name="campaignType"
                 className="input"
                 value={formData.campaignType}
-                onChange={(e) => set({ campaignType: e.target.value as 'reativacao' | 'prospeccao', templateId: '', templateName: '' })}
+                onChange={(e) => {
+                  const tipo = e.target.value as 'reativacao' | 'prospeccao';
+                  set({
+                    campaignType: tipo,
+                    agenteSlug: agentePadraoDoTipo(tipo, agentes) || formData.agenteSlug,
+                    templateId: '',
+                    templateName: '',
+                  });
+                }}
                 required
               >
                 <option value="prospeccao">Prospecção</option>
                 <option value="reativacao">Reativação</option>
               </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="field">
+              <label htmlFor="numeroSelect">Número do disparo *</label>
+              <select
+                id="numeroSelect"
+                name="numeroId"
+                className="input"
+                value={formData.numeroId}
+                onChange={(e) => set({ numeroId: e.target.value })}
+                required
+              >
+                {isLoadingOpcoes ? (
+                  <option value="">Carregando números…</option>
+                ) : numeros.length === 0 ? (
+                  <option value="">Nenhum número ativo e conectado</option>
+                ) : (
+                  <option value="">-- Selecione o número --</option>
+                )}
+                {!isLoadingOpcoes && numeros.map((n) => (
+                  <option key={n.phone_number_id} value={n.phone_number_id}>{rotuloNumero(n)}</option>
+                ))}
+              </select>
+              <span className="hint">Número do WhatsApp por onde as mensagens saem.</span>
+            </div>
+
+            <div className="field">
+              <label htmlFor="agenteSelect">Agente de mensagem *</label>
+              <select
+                id="agenteSelect"
+                name="agenteSlug"
+                className="input"
+                value={formData.agenteSlug}
+                onChange={(e) => {
+                  const slug = e.target.value;
+                  set({
+                    agenteSlug: slug,
+                    campaignType: slug ? tipoCampanhaDoAgente(slug) : formData.campaignType,
+                    templateId: '',
+                    templateName: '',
+                  });
+                }}
+                required
+              >
+                {isLoadingOpcoes ? (
+                  <option value="">Carregando agentes…</option>
+                ) : agentes.length === 0 ? (
+                  <option value="">Nenhum agente ativo</option>
+                ) : (
+                  <option value="">-- Selecione o agente --</option>
+                )}
+                {!isLoadingOpcoes && agentes.map((a) => (
+                  <option key={a.slug} value={a.slug}>{a.nome}{a.descricao ? ` — ${a.descricao}` : ''}</option>
+                ))}
+              </select>
+              <span className="hint">Quem responde os leads que retornarem. Define o tipo da campanha.</span>
             </div>
           </div>
 
@@ -982,6 +1207,14 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
               <ReviewRow label="Campanha" value={formData.campaignName} />
               <ReviewRow label="Tipo" value={formData.campaignType === 'reativacao' ? 'Reativação' : 'Prospecção'} />
               <ReviewRow
+                label="Número"
+                value={(() => {
+                  const n = numeros.find((x) => x.phone_number_id === formData.numeroId);
+                  return n ? rotuloNumero(n) : '—';
+                })()}
+              />
+              <ReviewRow label="Agente" value={agentes.find((a) => a.slug === formData.agenteSlug)?.nome || '—'} />
+              <ReviewRow
                 label="Template"
                 value={
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1111,6 +1344,8 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
         csvStats={csvStats}
         costEstimate={costEstimate}
         isLoadingCostEstimate={isLoadingCostEstimate}
+        tariffCost={custoTarifa}
+        usdBrl={usdBrl}
       />
     </div>
   );

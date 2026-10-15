@@ -44,7 +44,10 @@ export const TemplateSelect: React.FC<TemplateSelectProps> = ({ templates, campa
     };
   }, []);
 
-  const filtered = templates.filter((t) => !t.tipo || t.tipo === campaignType || t.tipo === 'nao_classificado');
+  // Só templates aprovados pela Meta aparecem — pendentes e rejeitados não podem ser usados em disparo.
+  const filtered = templates.filter(
+    (t) => isTemplateApproved(t) && (!t.tipo || t.tipo === campaignType || t.tipo === 'nao_classificado')
+  );
   const selected = templates.find((t) => t.id === value);
 
   return (
@@ -76,15 +79,12 @@ export const TemplateSelect: React.FC<TemplateSelectProps> = ({ templates, campa
           {isLoading ? (
             <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--ink-50)' }}>Carregando…</div>
           ) : filtered.length === 0 ? (
-            <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--ink-50)' }}>Nenhum template cadastrado</div>
+            <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--ink-50)' }}>Nenhum template aprovado para este tipo. Sincronize em Gerenciar.</div>
           ) : (
             filtered.map((t) => {
-              const approved = isTemplateApproved(t);
               const unclassified = t.tipo === 'nao_classificado';
-              const disabled = !approved || unclassified;
-              let suffix = '';
-              if (!approved) suffix = t.status_meta === 'REJECTED' ? 'Rejeitado pela Meta' : 'Aguardando aprovação';
-              else if (unclassified) suffix = 'Classifique o tipo em Gerenciar';
+              const disabled = unclassified;
+              const suffix = unclassified ? 'Classifique o tipo em Gerenciar' : '';
               const isSelected = value === t.id;
               return (
                 <button
@@ -110,7 +110,7 @@ export const TemplateSelect: React.FC<TemplateSelectProps> = ({ templates, campa
                 >
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-300)' }}>{t.nome}</span>
                   {suffix && (
-                    <span style={{ fontSize: 11, color: !approved ? 'var(--red-500)' : 'var(--ink-50)' }}>{suffix}</span>
+                    <span style={{ fontSize: 11, color: 'var(--ink-50)' }}>{suffix}</span>
                   )}
                 </button>
               );

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icon } from './Icon';
+import { CustoPorTarifa, formatBrl, formatUsd } from '../lib/custo';
 
 export interface Lead {
   nome: string;
@@ -11,6 +12,8 @@ export interface CsvStats {
   validNumbers: number;
   duplicatesRemoved: number;
   invalidSkipped: number;
+  /** Leads removidos por estarem na blacklist (opt-out). */
+  blacklisted?: number;
 }
 
 export interface CostEstimate {
@@ -40,6 +43,10 @@ interface WizardPreviewPanelProps {
   csvStats: CsvStats | null;
   costEstimate: CostEstimate | null;
   isLoadingCostEstimate: boolean;
+  /** Custo pela tarifa da Meta (leads × preço da categoria do template). */
+  tariffCost?: CustoPorTarifa | null;
+  /** Cotação USD→BRL; null quando indisponível (mostra só em dólar). */
+  usdBrl?: number | null;
 }
 
 /**
@@ -49,18 +56,21 @@ interface WizardPreviewPanelProps {
  */
 export const WizardPreviewPanel: React.FC<WizardPreviewPanelProps> = ({
   step, formData, selectedTemplate, leads, csvStats, costEstimate, isLoadingCostEstimate,
+  tariffCost = null, usdBrl = null,
 }) => {
   return (
     <div style={{ position: 'sticky', top: 0 }}>
       {step === 1 && <SummaryPreview formData={formData} />}
       {step === 2 && <WhatsAppPreview formData={formData} selectedTemplate={selectedTemplate} />}
-      {step === 3 && <LeadsStatusPreview csvStats={csvStats} leadsCount={leads.length} />}
+      {step === 3 && <LeadsStatusPreview csvStats={csvStats} leadsCount={leads.length} tariffCost={tariffCost} usdBrl={usdBrl} />}
       {step === 4 && (
         <FinancialPreview
           formData={formData}
           leadsCount={leads.length}
           costEstimate={costEstimate}
           isLoading={isLoadingCostEstimate}
+          tariffCost={tariffCost}
+          usdBrl={usdBrl}
         />
       )}
     </div>
@@ -240,7 +250,9 @@ const WhatsAppPreview: React.FC<{ formData: WizardFormData; selectedTemplate?: T
 
 /* ── Passo 3 — Status da base ── */
 
-const LeadsStatusPreview: React.FC<{ csvStats: CsvStats | null; leadsCount: number }> = ({ csvStats, leadsCount }) => (
+const LeadsStatusPreview: React.FC<{
+  csvStats: CsvStats | null; leadsCount: number; tariffCost: CustoPorTarifa | null; usdBrl: number | null;
+}> = ({ csvStats, leadsCount, tariffCost, usdBrl }) => (
   <div className="card" style={{ padding: 28, gap: 20 }}>
     <div className="label">
       <span>Status da base</span>
@@ -257,6 +269,9 @@ const LeadsStatusPreview: React.FC<{ csvStats: CsvStats | null; leadsCount: numb
         <CsvStatRow label="Linhas lidas" value={csvStats.totalLines} tone="neutral" />
         <CsvStatRow label="Números válidos" value={csvStats.validNumbers} tone="ok" />
         <CsvStatRow label="Duplicados removidos" value={csvStats.duplicatesRemoved} tone="warn" />
+        {(csvStats.blacklisted ?? 0) > 0 && (
+          <CsvStatRow label="Na blacklist (removidos)" value={csvStats.blacklisted as number} tone="warn" />
+        )}
         {csvStats.invalidSkipped > 0 && (
           <CsvStatRow label="Inválidos ignorados" value={csvStats.invalidSkipped} tone="err" />
         )}
@@ -264,10 +279,29 @@ const LeadsStatusPreview: React.FC<{ csvStats: CsvStats | null; leadsCount: numb
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-300)' }}>Leads que receberão a mensagem</span>
           <span className="t-mono tnum" style={{ fontSize: 20, fontWeight: 700, color: 'var(--navy-600)' }}>{leadsCount}</span>
         </div>
+        {tariffCost && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-300)' }}>Custo estimado</span>
+            <div style={{ textAlign: 'right' }}>
+              <CostValue totalUsd={tariffCost.totalUsd} usdBrl={usdBrl} size={18} />
+            </div>
+          </div>
+        )}
       </div>
     )}
   </div>
 );
+
+/** Valor em reais em destaque e, abaixo e menor, o equivalente em dólar. */
+const CostValue: React.FC<{ totalUsd: number; usdBrl: number | null; size?: number }> = ({ totalUsd, usdBrl, size = 36 }) =>
+  usdBrl ? (
+    <>
+      <div className="num tnum" style={{ fontSize: size, marginTop: 2 }}>{formatBrl(totalUsd * usdBrl)}</div>
+      <div className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)', marginTop: 2 }}>{formatUsd(totalUsd)}</div>
+    </>
+  ) : (
+    <div className="num tnum" style={{ fontSize: size, marginTop: 2 }}>{formatUsd(totalUsd)}</div>
+  );
 
 const CsvStatRow: React.FC<{ label: string; value: number; tone: 'neutral' | 'ok' | 'warn' | 'err' }> = ({ label, value, tone }) => {
   const chipClass = tone === 'ok' ? 'success' : tone === 'warn' ? 'warning' : tone === 'err' ? 'danger' : 'neutral';
@@ -283,8 +317,11 @@ const CsvStatRow: React.FC<{ label: string; value: number; tone: 'neutral' | 'ok
 
 const FinancialPreview: React.FC<{
   formData: WizardFormData; leadsCount: number; costEstimate: CostEstimate | null; isLoading: boolean;
-}> = ({ formData, leadsCount, costEstimate, isLoading }) => {
-  const total = costEstimate ? costEstimate.avgPerMsg * leadsCount : null;
+  tariffCost: CustoPorTarifa | null; usdBrl: number | null;
+}> = ({ formData, leadsCount, costEstimate, isLoading, tariffCost, usdBrl }) => {
+  // Principal: tarifa da Meta × leads. Sem tarifa para a categoria, cai na média real do template.
+  const totalHistorico = costEstimate ? costEstimate.avgPerMsg * leadsCount : null;
+  const total = tariffCost ? tariffCost.totalUsd : totalHistorico;
 
   return (
     <div className="card" style={{ padding: 28, gap: 20 }}>
@@ -301,14 +338,26 @@ const FinancialPreview: React.FC<{
           </div>
         ) : total !== null ? (
           <>
-            <div className="num tnum" style={{ fontSize: 36, marginTop: 6 }}>US$ {total.toFixed(2)}</div>
-            <div className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)', marginTop: 6 }}>
-              ~US$ {costEstimate!.avgPerMsg.toFixed(4)} por mensagem · baseado em {costEstimate!.sampleSize} disparo(s) anteriores deste template
-            </div>
+            <CostValue totalUsd={total} usdBrl={usdBrl} />
+            {tariffCost ? (
+              <div className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)', marginTop: 8, lineHeight: 1.5 }}>
+                {tariffCost.leads} leads × {formatUsd(tariffCost.precoUnitarioUsd, 4)} por mensagem ({tariffCost.categoria})
+                {usdBrl ? ` · US$ 1 = ${formatBrl(usdBrl)}` : ' · cotação do dólar indisponível'}
+              </div>
+            ) : (
+              <div className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)', marginTop: 8, lineHeight: 1.5 }}>
+                ~{formatUsd(costEstimate!.avgPerMsg, 4)} por mensagem · baseado em {costEstimate!.sampleSize} disparo(s) anteriores deste template
+              </div>
+            )}
+            {tariffCost && costEstimate && (
+              <div className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)', marginTop: 4 }}>
+                Média real deste template: ~{formatUsd(costEstimate.avgPerMsg, 4)} por mensagem ({costEstimate.sampleSize} disparo(s))
+              </div>
+            )}
           </>
         ) : (
           <div style={{ fontSize: 13, color: 'var(--ink-50)', marginTop: 10, lineHeight: 1.5 }}>
-            Sem histórico de custo para este template ainda — a estimativa aparece a partir do primeiro disparo.
+            Sem tarifa para a categoria deste template nem histórico de custo — sincronize os templates em Gerenciar ou aguarde o primeiro disparo.
           </div>
         )}
       </div>

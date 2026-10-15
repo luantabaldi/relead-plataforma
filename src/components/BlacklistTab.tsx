@@ -4,6 +4,7 @@ import { useToast } from '../hooks/useToast';
 import { useConfirm } from '../hooks/useConfirm';
 import { Icon } from './Icon';
 import { friendlyError } from '../lib/friendlyError';
+import { chaveTelefone, normalizeTelefone } from '../lib/telefone';
 
 export const BlacklistTab: React.FC = () => {
   const { entries, isLoading, addToBlacklist, removeFromBlacklist } = useBlacklist();
@@ -27,14 +28,20 @@ export const BlacklistTab: React.FC = () => {
       return;
     }
 
-    if (entries.some(e => e.telefone === newEntry.telefone)) {
+    const telefone = normalizeTelefone(newEntry.telefone);
+    if (telefone.length < 12) {
+      notify('err', 'Telefone inválido: informe DDD + número (com ou sem 55)');
+      return;
+    }
+
+    if (entries.some(e => chaveTelefone(e.telefone) === chaveTelefone(telefone))) {
       notify('err', 'Este telefone já está na blacklist');
       return;
     }
 
     try {
       await addToBlacklist(
-        newEntry.telefone.trim(),
+        telefone,
         newEntry.nome.trim() || undefined,
         newEntry.motivo.trim() || 'Adicionado manualmente'
       );

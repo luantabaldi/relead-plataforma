@@ -97,6 +97,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
   // WABA Templates states
   const [templates, setTemplates] = useState<Array<{ id: string; nome: string; tipo: string; status_meta: string; tem_variaveis?: boolean; categoria?: string; quality_score?: string; ultima_sincronizacao?: string }>>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [isSyncingMeta, setIsSyncingMeta] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<{ id?: string; nome: string; tipo: string; status_meta: string; tem_variaveis?: boolean } | null>(null);
 
   // Empreendimentos states
@@ -147,6 +148,35 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
       campaignModalPrevFocusRef.current?.focus?.();
     };
   }, [selectedCampaign]);
+
+  // Aciona o workflow de sincronização com a Meta (templates, status do número e
+  // custos). O n8n responde na hora e sincroniza em segundo plano, então a lista é
+  // recarregada depois de alguns segundos.
+  const handleSyncMeta = async () => {
+    const webhookUrl = process.env.REACT_APP_N8N_WEBHOOK_SYNC;
+    if (!webhookUrl) {
+      notify('err', 'Sincronização manual não configurada (REACT_APP_N8N_WEBHOOK_SYNC).');
+      return;
+    }
+    setIsSyncingMeta(true);
+    try {
+      const res = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origem: 'plataforma' }),
+      });
+      if (!res.ok) throw new Error(`Webhook respondeu com status ${res.status}`);
+      notify('ok', 'Sincronização iniciada. Atualizando a lista em instantes…');
+      setTimeout(async () => {
+        await loadTemplates();
+        setIsSyncingMeta(false);
+      }, 15000);
+    } catch (err) {
+      console.error('❌ Erro ao acionar sincronização:', err);
+      notify('err', friendlyError(err, 'Não foi possível iniciar a sincronização com a Meta.'));
+      setIsSyncingMeta(false);
+    }
+  };
 
   const loadTemplates = async () => {
     try {
@@ -683,9 +713,32 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                   <h3 className="t-h2" style={{ margin: 0, fontSize: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Icon name="file-text" size={20} /> Templates cadastrados
                   </h3>
-                  <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)' }}>
-                    Sincronizado automaticamente com a Meta
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)' }}>
+                      {(() => {
+                        const ultima = templates.reduce<string | null>(
+                          (max, t) => (t.ultima_sincronizacao && (!max || t.ultima_sincronizacao > max) ? t.ultima_sincronizacao : max),
+                          null
+                        );
+                        return ultima
+                          ? `Última sincronização: ${new Date(ultima).toLocaleString('pt-BR')}`
+                          : 'Sincroniza automaticamente todo dia às 6h';
+                      })()}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn secondary"
+                      onClick={handleSyncMeta}
+                      disabled={isSyncingMeta}
+                    >
+                      {isSyncingMeta ? (
+                        <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+                      ) : (
+                        <Icon name="refresh" size={14} />
+                      )}
+                      {isSyncingMeta ? 'Sincronizando…' : 'Sincronizar com a Meta'}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Formulário de Edição — nome/status_meta vêm da Meta e são somente leitura */}

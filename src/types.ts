@@ -1,7 +1,7 @@
 // Tipos e Interfaces para a Dashboard
 
 export type CampaignType = 'reativacao' | 'prospeccao';
-export type MessageStatus = 'enviado' | 'respondido' | 'interessado' | 'sem_interesse' | 'pausado' | 'erro' | 'pendente';
+export type MessageStatus = 'enviado' | 'respondido' | 'interessado' | 'sem_interesse' | 'pausado' | 'erro' | 'pendente' | 'cancelado';
 export type SenderType = 'user' | 'lead' | 'ia';
 
 export interface Message {

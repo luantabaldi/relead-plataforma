@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { chaveTelefone } from '../lib/telefone';
 
 export interface BlacklistEntry {
   id: string;
@@ -75,8 +76,11 @@ export const useBlacklist = () => {
     }
   };
 
+  // Compara pela chave (DDD + últimos 8 dígitos): "5548999999999", "48999999999"
+  // e "(48) 99999-9999" são o mesmo lead.
   const isBlocked = (telefone: string) => {
-    return entries.some(e => e.telefone === telefone);
+    const chave = chaveTelefone(telefone);
+    return entries.some(e => chaveTelefone(e.telefone) === chave);
   };
 
   return {

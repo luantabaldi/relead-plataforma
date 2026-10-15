@@ -17,6 +17,7 @@ export const STATUS_META: Record<string, StatusMeta> = {
   pausado:      { label: 'Pausado',       chip: 'warn',    icon: 'pause' },
   erro:         { label: 'Erro',          chip: 'err',     icon: 'alert-triangle' },
   pendente:     { label: 'Pendente',      chip: 'neutral', icon: 'clock' },
+  cancelado:    { label: 'Cancelado',     chip: 'neutral', icon: 'x-circle' },
 };
 
 export const statusMeta = (status: string): StatusMeta =>

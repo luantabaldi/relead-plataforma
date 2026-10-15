@@ -65,6 +65,7 @@ export const LeadsTab: React.FC = () => {
     if (isSemInteresse(status)) return 'Sem interesse';
     if (isRespostaAutomatica(status)) return 'Resposta automática (bot)';
     if (s === 'pendente') return 'Pendente';
+    if (s === 'cancelado') return 'Cancelado';
     return 'Sem resposta';
   };
 
@@ -159,6 +160,7 @@ export const LeadsTab: React.FC = () => {
                   <option value="resposta_automatica">Resposta automática (bot)</option>
                   <option value="sem_resposta">Sem resposta</option>
                   <option value="pendente">Pendente</option>
+                  <option value="cancelado">Cancelado</option>
                   <option value="erro">Erro</option>
                 </select>
               </div>

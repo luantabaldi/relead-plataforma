@@ -47,7 +47,7 @@ export interface LeadsStats {
 
 export interface LeadsFilters {
   searchTerm: string;
-  status: string; // '' | 'respondido' | 'ativado' | 'erro' | 'pendente' | 'sem_resposta' | 'sem_interesse' | 'resposta_automatica'
+  status: string; // '' | 'respondido' | 'ativado' | 'erro' | 'pendente' | 'sem_resposta' | 'sem_interesse' | 'resposta_automatica' | 'cancelado'
   nomeCampanha: string; // '' = todas
   empreendimentoId: string; // '' = todos
   dataInicio: Date | null;
@@ -73,6 +73,7 @@ const STATUS_VALUES: Record<string, string[]> = {
   resposta_automatica: ['Resposta automática', 'Resposta Automática'],
   erro: ['Erro', 'Erro no Disparo'],
   pendente: ['Pendente'],
+  cancelado: ['Cancelado'],
   sem_resposta: ['Enviado'],
 };
 
