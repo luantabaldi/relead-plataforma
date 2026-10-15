@@ -120,6 +120,12 @@ export const ActiveDispatchesModal: React.FC<ActiveDispatchesModalProps> = ({
                       <span className="spinner" style={{ width: 10, height: 10, borderWidth: 2 }} />
                       {c.pendente} pendentes
                     </span>
+                    {c.pausado > 0 && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--ink-100)' }}>
+                        <Icon name="pause" size={12} style={{ color: 'var(--ink-50)' }} />
+                        {c.pausado} pausados
+                      </span>
+                    )}
                     {c.erro > 0 && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--red-500)' }}>
                         <span className="dot err" style={{ width: 6, height: 6, borderRadius: '50%', display: 'inline-block' }} />

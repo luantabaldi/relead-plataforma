@@ -67,6 +67,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
   const [agentes, setAgentes] = useState<AgenteOption[]>([]);
   const [tarifas, setTarifas] = useState<Tarifa[]>([]);
   const [isLoadingOpcoes, setIsLoadingOpcoes] = useState(true);
+  const [isCheckingName, setIsCheckingName] = useState(false);
   const usdBrl = useCotacaoUsd();
   const { entries: blacklistEntries, isLoading: isLoadingBlacklist, error: blacklistError } = useBlacklist();
   const blockedKeys = useMemo(
@@ -415,12 +416,44 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
     return null;
   };
 
-  const goNext = () => {
+  // O workflow de disparo identifica a campanha pelo nome e trata como "já enviado" todo telefone que
+  // já tem um registro (não pendente) com esse nome. Um nome repetido faz o disparo novo pular os
+  // leads em silêncio — foi o que aconteceu com "Convite - Villa di Como". Devolve null se não deu
+  // para verificar (aí o disparo não segue).
+  const campanhaJaExiste = async (nome: string): Promise<boolean | null> => {
+    const { count, error } = await supabase
+      .from('leads_reativacao')
+      .select('id', { count: 'exact', head: true })
+      .eq('nome_campanha', nome.trim());
+    if (error) return null;
+    return (count ?? 0) > 0;
+  };
+
+  const mensagemNomeRepetido = (nome: string) =>
+    `Já existe uma campanha chamada "${nome.trim()}". Para continuar uma campanha pausada, use "Retomar" em Disparos em andamento. Para um novo disparo, escolha outro nome.`;
+
+  const goNext = async () => {
     const target = Math.min(4, step + 1);
     const err = getBlockingError(target);
     if (err) {
       setStatus({ type: 'err', text: err });
       return;
+    }
+    if (step === 1) {
+      setIsCheckingName(true);
+      try {
+        const existe = await campanhaJaExiste(formData.campaignName);
+        if (existe === null) {
+          setStatus({ type: 'err', text: 'Não foi possível verificar se o nome da campanha já existe. Tente novamente.' });
+          return;
+        }
+        if (existe) {
+          setStatus({ type: 'err', text: mensagemNomeRepetido(formData.campaignName) });
+          return;
+        }
+      } finally {
+        setIsCheckingName(false);
+      }
     }
     setStatus(null);
     setStep(target);
@@ -467,6 +500,12 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
 
       if (!formData.numeroId) throw new Error('Selecione o número do disparo.');
       if (!formData.agenteSlug) throw new Error('Selecione o agente de mensagem.');
+
+      const nomeJaUsado = await campanhaJaExiste(formData.campaignName);
+      if (nomeJaUsado === null) {
+        throw new Error('Não foi possível verificar o nome da campanha. Nenhuma mensagem foi enviada; tente novamente.');
+      }
+      if (nomeJaUsado) throw new Error(mensagemNomeRepetido(formData.campaignName));
 
       // Variáveis do template: o workflow envia (ou não) o nome do lead como parâmetro conforme
       // o campo tem_variaveis. Se ele divergir do corpo aprovado na Meta, o envio inteiro falha
@@ -1310,7 +1349,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
             type="button"
             className="btn primary"
             onClick={goNext}
-            disabled={step === 3 && leads.length === 0}
+            disabled={(step === 3 && leads.length === 0) || isCheckingName}
           >
             {step === 3 ? (
               <><Icon name="eye" size={16} /> {leads.length > 0 ? `Revisar disparo para ${leads.length} leads` : 'Revisar disparo'}</>

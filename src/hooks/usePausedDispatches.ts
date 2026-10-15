@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { nomesDeCampanhasComStatus, resumirCampanha } from '../lib/resumoCampanhas';
 
 export interface PausedCampaign {
   nome_campanha: string;
@@ -15,59 +16,35 @@ export interface PausedCampaign {
  * interrompidos manualmente (via botão "Parar") que não têm mais leads
  * "Pendente" e por isso somem de useActiveDispatches. Retomar volta esses
  * leads para "Pendente" e o n8n precisa ser re-acionado para processá-los.
+ *
+ * Mesma contagem por consulta de contagem do painel de disparos ativos.
  */
 export const usePausedDispatches = () => {
   const [campaigns, setCampaigns] = useState<PausedCampaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchPaused = useCallback(async () => {
     try {
-      const { data: pausedRows, error: pausedError } = await supabase
-        .from('leads_reativacao')
-        .select('nome_campanha')
-        .eq('status_reativacao', 'Pausado')
-        .limit(2000);
-
-      if (pausedError) throw pausedError;
-
-      const pausedNames = Array.from(
-        new Set((pausedRows || []).map((r: any) => r.nome_campanha).filter(Boolean))
-      );
-
-      if (pausedNames.length === 0) {
+      const nomes = await nomesDeCampanhasComStatus('Pausado');
+      if (nomes.length === 0) {
         setCampaigns([]);
         return;
       }
-
-      const { data: allRows, error: allError } = await supabase
-        .from('leads_reativacao')
-        .select('nome_campanha, tipo_campanha, status_reativacao')
-        .in('nome_campanha', pausedNames);
-
-      if (allError) throw allError;
-
-      const byCampaign = new Map<string, PausedCampaign>();
-      (allRows || []).forEach((row: any) => {
-        const key = row.nome_campanha;
-        if (!byCampaign.has(key)) {
-          byCampaign.set(key, {
-            nome_campanha: key,
-            tipo_campanha: row.tipo_campanha || 'prospeccao',
-            total: 0,
-            pausado: 0,
-            enviado: 0,
-            erro: 0,
-          });
-        }
-        const entry = byCampaign.get(key)!;
-        entry.total += 1;
-        const status = (row.status_reativacao || '').toLowerCase();
-        if (status === 'pausado') entry.pausado += 1;
-        else if (status === 'erro' || status === 'erro no disparo') entry.erro += 1;
-        else if (status !== 'pendente') entry.enviado += 1;
-      });
-
-      setCampaigns(Array.from(byCampaign.values()));
+      const resumos = await Promise.all(nomes.map((n) => resumirCampanha(n)));
+      setCampaigns(
+        resumos
+          // Uma campanha com leads pendentes está em andamento, não pausada.
+          .filter((r) => r.pausado > 0 && r.pendente === 0)
+          .map((r) => ({
+            nome_campanha: r.nome_campanha,
+            tipo_campanha: r.tipo_campanha,
+            total: r.total,
+            pausado: r.pausado,
+            enviado: r.enviado,
+            erro: r.erro,
+          }))
+      );
     } catch (err) {
       console.warn('⚠️ Erro ao buscar disparos pausados:', err);
       setCampaigns([]);
@@ -79,21 +56,23 @@ export const usePausedDispatches = () => {
   useEffect(() => {
     fetchPaused();
 
+    const agendar = () => {
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(fetchPaused, 800);
+    };
+
     let channel: any = null;
     try {
       channel = supabase
         .channel('paused-dispatches-changes')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'leads_reativacao' },
-          () => fetchPaused()
-        )
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'leads_reativacao' }, agendar)
         .subscribe();
     } catch (err) {
       console.warn('⚠️ Falha ao registrar realtime de disparos pausados:', err);
     }
 
     return () => {
+      if (timer.current) clearTimeout(timer.current);
       try {
         if (channel) supabase.removeChannel(channel);
       } catch (err) {

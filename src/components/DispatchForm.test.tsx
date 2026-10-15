@@ -49,10 +49,12 @@ describe('DispatchForm', () => {
   ];
 
   let dbBlacklist: Array<{ id: string; telefone: string; nome?: string; motivo: string; data_bloqueio: string }>;
+  let leadsExistentesNaCampanha: number;
 
   beforeEach(() => {
     jest.clearAllMocks();
     dbBlacklist = [];
+    leadsExistentesNaCampanha = 0;
 
     (supabase.from as jest.Mock).mockImplementation((table: string) => {
       switch (table) {
@@ -63,6 +65,7 @@ describe('DispatchForm', () => {
         case 'meta_tarifas': return chain({ data: [{ categoria: 'marketing', preco_usd: 0.0625 }], error: null });
         case 'blacklist': return chain({ data: dbBlacklist, error: null });
         case 'v_disparos_custo': return chain({ data: [], error: null });
+        case 'leads_reativacao': return chain({ data: [], count: leadsExistentesNaCampanha, error: null } as any);
         default: return chain({ data: [], error: null });
       }
     });
@@ -180,5 +183,29 @@ describe('DispatchForm', () => {
 
     expect(await screen.findByText(/1 leads válidos carregados\./)).toBeTruthy();
     expect(screen.getByText(/1 na blacklist removido\(s\)/)).toBeTruthy();
+  });
+
+  it('bloqueia nome de campanha que já existe e explica o que fazer', async () => {
+    leadsExistentesNaCampanha = 2095;
+    render(<DispatchForm />);
+    await preencherPasso1('Convite - Villa di Como');
+
+    fireEvent.click(screen.getByRole('button', { name: /Continuar/ }));
+
+    expect(await screen.findByText(/Já existe uma campanha chamada "Convite - Villa di Como"/)).toBeTruthy();
+    expect(screen.getByText(/use "Retomar"/)).toBeTruthy();
+    // continua no passo 1: não chegou ao seletor de template
+    expect(screen.queryByRole('button', { name: /Selecione um template/ })).toBeNull();
+  });
+
+  it('deixa avançar com nome novo', async () => {
+    leadsExistentesNaCampanha = 0;
+    render(<DispatchForm />);
+    await preencherPasso1('Campanha inédita');
+
+    fireEvent.click(screen.getByRole('button', { name: /Continuar/ }));
+
+    expect(await screen.findByRole('button', { name: /Selecione um template|Carregando templates/ })).toBeTruthy();
+    expect(screen.queryByText(/Já existe uma campanha/)).toBeNull();
   });
 });
