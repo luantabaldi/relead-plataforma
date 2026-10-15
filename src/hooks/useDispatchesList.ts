@@ -119,6 +119,8 @@ export const useDispatchesList = (filters: FilterOptions): UseDispatchesListStat
           nome: d.nome_lead,
           tipo_campanha: d.tipo_campanha || 'reativacao',
           nome_campanha: d.nome_campanha || undefined,
+          motivo_objecao: d.motivo_objecao || undefined,
+          tipo_erro: d.tipo_erro || undefined,
           status: normalizeStatus(d.status_reativacao),
           template_nome: '[Template]',
           timestamp_envio: d.data_envio ? parseUTCDate(d.data_envio) : new Date(),

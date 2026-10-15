@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { DisparosPorDiaChart, FunnelConversaoChart, StatusDonutChart, CampanhasTable } from '../components/PerformanceCharts';
+import { DisparosPorDiaChart, FunnelConversaoChart, StatusDonutChart, CampanhasTable, DesqualificadosChart, OptOutRateCard, HeatmapChart } from '../components/PerformanceCharts';
 import { Dashboard } from '../components/Dashboard';
 import { DispatchForm } from '../components/DispatchForm';
 import { TopNav } from '../components/TopNav';
@@ -1792,6 +1792,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
                   <div className="min-w-0 flex"><FunnelConversaoChart conversations={conversations} /></div>
                   <div className="md:col-span-2 min-w-0 flex"><StatusDonutChart conversations={conversations} /></div>
                   <div className="md:col-span-3 min-w-0 flex"><CampanhasTable conversations={conversations} /></div>
+                  <div className="md:col-span-2 min-w-0 flex"><DesqualificadosChart conversations={conversations} /></div>
+                  <div className="min-w-0 flex"><OptOutRateCard conversations={conversations} /></div>
+                  <div className="md:col-span-3 min-w-0 flex"><HeatmapChart conversations={conversations} /></div>
                 </div>
               </>
             )}

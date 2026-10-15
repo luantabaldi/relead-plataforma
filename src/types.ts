@@ -33,6 +33,8 @@ export interface Dispatch {
   nome: string;
   tipo_campanha: CampaignType;
   nome_campanha?: string;
+  motivo_objecao?: string;
+  tipo_erro?: string;
   status: MessageStatus;
   template_nome: string;
   timestamp_envio: Date;

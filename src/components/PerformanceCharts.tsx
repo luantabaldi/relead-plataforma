@@ -10,6 +10,8 @@ export interface PerformanceDispatch {
   status: string;
   timestamp_envio: Date;
   nome_campanha?: string;
+  motivo_objecao?: string;
+  tipo_erro?: string;
 }
 
 export interface PerformanceConversation {
@@ -589,6 +591,200 @@ export const CampanhasTable: React.FC<{ conversations: PerformanceConversation[]
           </table>
         </div>
       )}
+    </div>
+  );
+};
+
+/* ── 5. Leads desqualificados + taxa de opt-out ──────────────────────────── */
+
+const ehOptOut = (d: PerformanceDispatch) => /opt|remo[cç]/i.test(d.motivo_objecao || '');
+
+export const DesqualificadosChart: React.FC<{ conversations: PerformanceConversation[] }> = ({ conversations }) => {
+  const total = conversations.length;
+  const grupos = new Map<string, { label: string; count: number; cor: string }>();
+  const soma = (k: string, label: string, cor: string) => {
+    const g = grupos.get(k) || { label, count: 0, cor };
+    g.count++;
+    grupos.set(k, g);
+  };
+
+  conversations.forEach(({ dispatch: d }) => {
+    if (ehOptOut(d)) soma('optout', 'Pediu para parar (opt-out)', 'var(--chart-status-erro)');
+    else if (d.status === 'sem_interesse') soma('sem', 'Sem interesse', 'var(--chart-status-sem-interesse)');
+    else if (d.status === 'erro') soma(`erro:${d.tipo_erro || ''}`, d.tipo_erro || 'Erro no disparo', 'var(--chart-status-pausado)');
+  });
+
+  const linhas = Array.from(grupos.values()).sort((a, b) => b.count - a.count);
+  const desq = linhas.reduce((s, l) => s + l.count, 0);
+
+  return (
+    <div className="card" style={cardStyle}>
+      <h4 className="t-serif" style={{ ...titleStyle, marginBottom: 12 }}>Leads desqualificados</h4>
+      {total === 0 ? (
+        <EmptyState>Sem disparos no período selecionado</EmptyState>
+      ) : linhas.length === 0 ? (
+        <EmptyState>Nenhum lead desqualificado no período</EmptyState>
+      ) : (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {linhas.map((l) => (
+              <div key={l.label}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                  <span style={{ fontWeight: 600, color: 'var(--ink-300)' }}>{l.label}</span>
+                  <span className="t-mono tnum" style={{ color: 'var(--ink-200)' }}>
+                    {fmt(l.count)} <span style={{ color: 'var(--ink-50)' }}>· {pct(l.count, desq)}%</span>
+                  </span>
+                </div>
+                <div style={{ height: 8, background: 'var(--paper-100)', borderRadius: 4, overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.max(2, pct(l.count, desq))}%`, height: '100%', background: l.cor }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="t-caption" style={{ margin: '12px 0 0' }}>
+            {fmt(desq)} de {fmt(total)} disparos ({pct(desq, total)}%). Número inexistente e caixa postal/secretária
+            ainda não são registrados separadamente — entram em "Erro no disparo".
+          </p>
+        </>
+      )}
+    </div>
+  );
+};
+
+export const OptOutRateCard: React.FC<{ conversations: PerformanceConversation[] }> = ({ conversations }) => {
+  const total = conversations.length;
+  const optouts = conversations.filter((c) => ehOptOut(c.dispatch)).length;
+  const taxa = total ? (optouts / total) * 100 : 0;
+
+  return (
+    <div className="card" style={cardStyle}>
+      <h4 className="t-serif" style={{ ...titleStyle, marginBottom: 12 }}>Taxa de opt-out</h4>
+      {total === 0 ? (
+        <EmptyState>Sem disparos no período selecionado</EmptyState>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span className="t-mono tnum" style={{ fontSize: 34, fontWeight: 700, color: 'var(--ink-300)', lineHeight: 1 }}>
+            {taxa.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
+          </span>
+          <span className="t-caption">
+            {fmt(optouts)} pedido{optouts !== 1 ? 's' : ''} de descadastro em {fmt(total)} disparos
+          </span>
+          <span className="t-caption" style={{ color: taxa > 2 ? 'var(--chart-status-erro)' : 'var(--ink-50)' }}>
+            {taxa > 2 ? 'Acima de 2%: revise a mensagem e a segmentação.' : 'Dentro do patamar saudável (até 2%).'}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ── 6. Melhor dia e horário (heatmap de taxa de resposta) ───────────────── */
+
+const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const AMOSTRA_MINIMA = 5;
+const hh = (h: number) => `${String(h).padStart(2, '0')}h`;
+
+export const HeatmapChart: React.FC<{ conversations: PerformanceConversation[] }> = ({ conversations }) => {
+  const [hover, setHover] = useState<{ dia: number; hora: number } | null>(null);
+
+  const { celulas, horas, melhor, maxTaxa } = useMemo(() => {
+    const c = new Map<string, { n: number; r: number }>();
+    let hMin = 23;
+    let hMax = 0;
+    conversations.forEach(({ dispatch: d }) => {
+      const t = d.timestamp_envio;
+      if (!(t instanceof Date) || isNaN(t.getTime())) return;
+      if (d.status === 'pausado' || d.status === 'erro') return; // nunca chegaram ao lead
+      const k = `${t.getDay()}-${t.getHours()}`;
+      const cell = c.get(k) || { n: 0, r: 0 };
+      cell.n++;
+      if (RESPONDERAM.includes(d.status)) cell.r++;
+      c.set(k, cell);
+      hMin = Math.min(hMin, t.getHours());
+      hMax = Math.max(hMax, t.getHours());
+    });
+    let best: { dia: number; hora: number; taxa: number; n: number } | null = null;
+    let max = 0;
+    c.forEach((v, k) => {
+      const [dia, hora] = k.split('-').map(Number);
+      const taxa = v.r / v.n;
+      if (v.n >= AMOSTRA_MINIMA) {
+        max = Math.max(max, taxa);
+        if (!best || taxa > best.taxa) best = { dia, hora, taxa, n: v.n };
+      }
+    });
+    const hs: number[] = [];
+    if (c.size > 0) for (let h = hMin; h <= hMax; h++) hs.push(h);
+    return { celulas: c, horas: hs, melhor: best as { dia: number; hora: number; taxa: number; n: number } | null, maxTaxa: max };
+  }, [conversations]);
+
+  const ativa = hover ? celulas.get(`${hover.dia}-${hover.hora}`) : null;
+
+  return (
+    <div className="card" style={cardStyle}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+        <h4 className="t-serif" style={titleStyle}>Melhor dia e horário para disparar</h4>
+        <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-50)' }}>
+          {hover
+            ? `${DIAS_SEMANA[hover.dia]} ${hh(hover.hora)}: ${ativa ? `${fmt(ativa.n)} envios · ${pct(ativa.r, ativa.n)}% responderam` : 'sem envios'}`
+            : melhor
+              ? `Melhor: ${DIAS_SEMANA[melhor.dia]} às ${hh(melhor.hora)} · ${Math.round(melhor.taxa * 100)}% (${fmt(melhor.n)} envios)`
+              : `Células com menos de ${AMOSTRA_MINIMA} envios ficam apagadas`}
+        </span>
+      </div>
+
+      {horas.length === 0 ? (
+        <EmptyState>Sem disparos entregues no período selecionado</EmptyState>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ borderCollapse: 'separate', borderSpacing: 3, width: '100%', fontSize: 10 }}>
+            <thead>
+              <tr>
+                <th />
+                {horas.map((h) => (
+                  <th key={h} className="t-mono" style={{ fontWeight: 500, color: 'var(--ink-50)' }}>{hh(h)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {DIAS_SEMANA.map((nome, dia) => (
+                <tr key={nome}>
+                  <th scope="row" className="t-mono" style={{ fontWeight: 500, color: 'var(--ink-50)', textAlign: 'left', paddingRight: 6 }}>{nome}</th>
+                  {horas.map((h) => {
+                    const cell = celulas.get(`${dia}-${h}`);
+                    const valida = !!cell && cell.n >= AMOSTRA_MINIMA;
+                    const taxa = cell ? cell.r / cell.n : 0;
+                    const intensidade = valida && maxTaxa > 0 ? taxa / maxTaxa : 0;
+                    return (
+                      <td
+                        key={h}
+                        title={cell ? `${nome} ${hh(h)}: ${cell.n} envios, ${pct(cell.r, cell.n)}% responderam${valida ? '' : ' (amostra pequena)'}` : `${nome} ${hh(h)}: sem envios`}
+                        onMouseEnter={() => setHover({ dia, hora: h })}
+                        onMouseLeave={() => setHover(null)}
+                        style={{
+                          height: 22, minWidth: 22, borderRadius: 4, textAlign: 'center',
+                          background: !cell
+                            ? 'var(--paper-100)'
+                            : valida
+                              ? `color-mix(in srgb, var(--chart-funnel-3) ${Math.round(20 + intensidade * 80)}%, var(--paper-100))`
+                              : 'var(--paper-200)',
+                          color: intensidade > 0.6 ? '#fff' : 'var(--ink-200)',
+                          opacity: cell && !valida ? 0.6 : 1,
+                        }}
+                      >
+                        {valida ? `${Math.round(taxa * 100)}` : ''}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="t-caption" style={{ margin: '8px 0 0' }}>
+        Taxa de resposta (%) por dia da semana e hora do envio · só envios entregues · cor mais forte = melhor resposta.
+      </p>
     </div>
   );
 };
