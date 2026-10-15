@@ -1,18 +1,24 @@
 /**
- * Webhook do workflow de disparo do n8n ("reLead — 3. Disparo (20s)").
+ * Endereços dos workflows do n8n usados pelo app.
  *
- * Cada número pode ter o próprio workflow (a instância de envio fica no workflow).
- * Convenção: REACT_APP_N8N_WEBHOOK_DISPARO_<phone_number_id>; sem ela, usa o padrão.
- * O CRA embute as REACT_APP_* no build, então a variável precisa existir na Vercel antes do deploy.
+ * ATENÇÃO — não troque por variáveis de ambiente opcionais: o CRA embute TODAS as
+ * variáveis REACT_APP_* no JavaScript público quando o código referencia uma variável que
+ * não existe no build (ou usa `process.env[chave]`). Foi assim que a chave do CRM foi parar
+ * no bundle. Só referencie `process.env.REACT_APP_X` para variáveis que estão sempre
+ * definidas na Vercel (Supabase e o webhook de reenvio, já em uso).
  *
- * O workflow anterior (40 s entre envios) continua no n8n em /webhook/disparo-manual-planilha
- * e serve de reserva: para voltar a ele, basta trocar o caminho padrão abaixo.
+ * Disparo: "reLead — 3. Disparo (20s)". O workflow anterior (40 s entre envios) continua no
+ * n8n em /webhook/disparo-manual-planilha e serve de reserva: para voltar a ele, troque o
+ * caminho abaixo.
  */
-export const WEBHOOK_DISPARO_PADRAO =
-  'https://n8n.srv1214309.hstgr.cloud/webhook/disparo-manual-planilha-v2';
+const N8N = 'https://n8n.srv1214309.hstgr.cloud/webhook';
 
-export function webhookDisparoDoNumero(phoneNumberId?: string | null): string {
-  if (!phoneNumberId) return WEBHOOK_DISPARO_PADRAO;
-  const env = process.env as Record<string, string | undefined>;
-  return env[`REACT_APP_N8N_WEBHOOK_DISPARO_${phoneNumberId}`] || WEBHOOK_DISPARO_PADRAO;
+export const WEBHOOK_DISPARO_PADRAO = `${N8N}/disparo-manual-planilha-v2`;
+
+/** Sincronização com a Meta: workflow "Meta Ads — 2b" (templates, status do número e custos). */
+export const WEBHOOK_SYNC_META = `${N8N}/sync-meta-a346d79419ae8172b2a338027030e90b`;
+
+/** Hoje há um único workflow de disparo; o parâmetro fica para quando houver um por número. */
+export function webhookDisparoDoNumero(_phoneNumberId?: string | null): string {
+  return WEBHOOK_DISPARO_PADRAO;
 }

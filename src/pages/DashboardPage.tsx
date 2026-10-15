@@ -20,7 +20,7 @@ import { useGeminiKpis, CustoGeminiPorCampanha } from '../hooks/useGeminiKpis';
 import { useCustoPeriodo } from '../hooks/useCustoPeriodo';
 import { useCampaignNames } from '../hooks/useCampaignNames';
 import { friendlyError } from '../lib/friendlyError';
-import { webhookDisparoDoNumero } from '../lib/webhooks';
+import { webhookDisparoDoNumero, WEBHOOK_SYNC_META } from '../lib/webhooks';
 import { corpoTemVariaveis } from '../lib/template';
 import { FilterOptions, CampaignType } from '../types';
 import { supabase } from '../lib/supabase';
@@ -155,14 +155,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
   // custos). O n8n responde na hora e sincroniza em segundo plano, então a lista é
   // recarregada depois de alguns segundos.
   const handleSyncMeta = async () => {
-    const webhookUrl = process.env.REACT_APP_N8N_WEBHOOK_SYNC;
-    if (!webhookUrl) {
-      notify('err', 'Sincronização manual não configurada (REACT_APP_N8N_WEBHOOK_SYNC).');
-      return;
-    }
     setIsSyncingMeta(true);
     try {
-      const res = await fetch(webhookUrl, {
+      const res = await fetch(WEBHOOK_SYNC_META, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ origem: 'plataforma' }),

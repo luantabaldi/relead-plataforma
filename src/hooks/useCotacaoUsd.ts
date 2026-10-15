@@ -14,15 +14,9 @@ function readCache(): number | null {
   }
 }
 
-function fallbackFromEnv(): number | null {
-  const v = parseFloat(process.env.REACT_APP_USD_BRL_FALLBACK || '');
-  return Number.isFinite(v) && v > 0 ? v : null;
-}
-
 /**
  * Cotação USD→BRL para mostrar o custo estimado em reais. Cache de 1h na sessão.
- * Se a API de câmbio cair, usa REACT_APP_USD_BRL_FALLBACK; sem ela, devolve null
- * e a tela mostra só o valor em dólar.
+ * Se a API de câmbio cair, devolve null e a tela mostra só o valor em dólar.
  */
 export const useCotacaoUsd = (): number | null => {
   const [usdBrl, setUsdBrl] = useState<number | null>(() => readCache());
@@ -44,7 +38,7 @@ export const useCotacaoUsd = (): number | null => {
         }
         if (!cancelled) setUsdBrl(bid);
       } catch {
-        if (!cancelled) setUsdBrl(fallbackFromEnv());
+        if (!cancelled) setUsdBrl(null);
       }
     })();
     return () => {
