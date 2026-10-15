@@ -32,6 +32,7 @@ export interface Dispatch {
   telefone: string;
   nome: string;
   tipo_campanha: CampaignType;
+  nome_campanha?: string;
   status: MessageStatus;
   template_nome: string;
   timestamp_envio: Date;
