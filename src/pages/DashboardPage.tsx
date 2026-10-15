@@ -20,6 +20,8 @@ import { useGeminiKpis, CustoGeminiPorCampanha } from '../hooks/useGeminiKpis';
 import { useCustoPeriodo } from '../hooks/useCustoPeriodo';
 import { useCampaignNames } from '../hooks/useCampaignNames';
 import { friendlyError } from '../lib/friendlyError';
+import { webhookDisparoDoNumero } from '../lib/webhooks';
+import { corpoTemVariaveis } from '../lib/template';
 import { FilterOptions, CampaignType } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -350,12 +352,44 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
       // ainda nulo) garante o nome de template original e não um valor sujo.
       const { data: sampleLead } = await supabase
         .from('leads_reativacao')
-        .select('mensagem_enviada')
+        .select('mensagem_enviada, phone_number_id, imagem_url')
         .eq('nome_campanha', campaignName)
         .eq('status_reativacao', 'Pausado')
         .is('data_envio', null)
         .limit(1)
         .maybeSingle();
+
+      // Template com imagem no cabeçalho exige imagem_url em toda execução do workflow. Sem ela
+      // ele pula cada lead sem enviar nem marcar nada — a campanha "retomada" ficaria parada.
+      // Por isso a checagem é feita ANTES de mexer em qualquer lead.
+      if (sampleLead?.mensagem_enviada) {
+        const { data: tpl } = await supabase
+          .from('templates_wpp')
+          .select('id, componentes, tem_variaveis')
+          .eq('nome', sampleLead.mensagem_enviada)
+          .maybeSingle();
+
+        // O workflow decide enviar (ou não) o nome do lead pelo campo tem_variaveis; se divergir do
+        // corpo aprovado na Meta, a Meta recusa o envio (#132000). O corpo é a fonte da verdade.
+        const variaveisNaMeta = corpoTemVariaveis(tpl?.componentes);
+        if (tpl && variaveisNaMeta !== null && variaveisNaMeta !== tpl.tem_variaveis) {
+          const { error: ajusteErr } = await supabase
+            .from('templates_wpp')
+            .update({ tem_variaveis: variaveisNaMeta })
+            .eq('id', tpl.id);
+          if (ajusteErr) {
+            notify('err', 'Não foi possível ajustar as variáveis do template antes de retomar.');
+            return;
+          }
+        }
+
+        const exigeImagem = Array.isArray(tpl?.componentes) &&
+          (tpl?.componentes as any[]).some((c: any) => c?.type === 'HEADER' && c?.format === 'IMAGE');
+        if (exigeImagem && !sampleLead.imagem_url) {
+          notify('err', 'Este template tem imagem no cabeçalho e a imagem desta campanha não está registrada. Retomar não enviaria nada — fale com o suporte para informar a imagem.');
+          return;
+        }
+      }
 
       const { error } = await supabase
         .from('leads_reativacao')
@@ -368,7 +402,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
       // Re-aciona o mesmo webhook do disparo manual para o n8n voltar a
       // processar os leads que acabaram de virar "Pendente" novamente.
       try {
-        const webhookResponse = await fetch('https://n8n.srv1214309.hstgr.cloud/webhook/disparo-manual-planilha', {
+        const webhookResponse = await fetch(webhookDisparoDoNumero(sampleLead?.phone_number_id), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -376,6 +410,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
             nome_campanha: campaignName,
             tipo_campanha: tipoCampanha,
             template_id: sampleLead?.mensagem_enviada || '',
+            imagem_url: sampleLead?.imagem_url || null,
+            phone_number_id: sampleLead?.phone_number_id || null,
           }),
         });
 

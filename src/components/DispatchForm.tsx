@@ -9,25 +9,13 @@ import { chaveTelefone } from '../lib/telefone';
 import { agentePadraoDoTipo, tipoCampanhaDoAgente, AgenteOption } from '../lib/agentes';
 import { estimarCustoPorTarifa, Tarifa } from '../lib/custo';
 import { corpoTemVariaveis } from '../lib/template';
+import { webhookDisparoDoNumero } from '../lib/webhooks';
 
 interface NumeroOption {
   phone_number_id: string;
   numero_display: string | null;
   apelido: string | null;
   quality_rating: string | null;
-}
-
-const WEBHOOK_DISPARO_PADRAO = 'https://n8n.srv1214309.hstgr.cloud/webhook/disparo-manual-planilha';
-
-/**
- * Cada número pode ter o próprio workflow de disparo (a instância de envio fica
- * no workflow). Convenção: REACT_APP_N8N_WEBHOOK_DISPARO_<phone_number_id>; sem
- * ela, usa o webhook padrão. O CRA embute todas as REACT_APP_* no build, então
- * a variável precisa existir na Vercel antes do deploy.
- */
-function webhookDisparoDoNumero(phoneNumberId: string): string {
-  const env = process.env as Record<string, string | undefined>;
-  return env[`REACT_APP_N8N_WEBHOOK_DISPARO_${phoneNumberId}`] || WEBHOOK_DISPARO_PADRAO;
 }
 
 const rotuloNumero = (n: NumeroOption): string => {
@@ -524,6 +512,8 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
         historico_mensagens: null, // inicia nulo, n8n preenche no disparo
         phone_number_id: formData.numeroId,
         agente_slug: formData.agenteSlug,
+        // Guardada em cada lead: "Retomar" precisa reenviar a imagem ao workflow de disparo.
+        imagem_url: formData.imagemUrl.trim() || null,
       }));
 
       // Inserir no Supabase retornando representação com IDs gerados
