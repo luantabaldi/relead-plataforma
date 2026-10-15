@@ -173,7 +173,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
       }, 15000);
     } catch (err) {
       console.error('❌ Erro ao acionar sincronização:', err);
-      notify('err', friendlyError(err, 'Não foi possível iniciar a sincronização com a Meta.'));
+      // Webhook inativo no n8n responde 404 sem cabeçalho CORS: o navegador só vê "Failed to fetch".
+      // Dizer "sem conexão" aqui engana — o provável é o workflow de sincronização estar desativado.
+      notify(
+        'err',
+        err instanceof TypeError
+          ? 'Não foi possível acionar a sincronização. Verifique se o workflow de sincronização está ativo no n8n.'
+          : friendlyError(err, 'Não foi possível iniciar a sincronização com a Meta.')
+      );
       setIsSyncingMeta(false);
     }
   };

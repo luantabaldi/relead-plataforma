@@ -44,10 +44,11 @@ export const TemplateSelect: React.FC<TemplateSelectProps> = ({ templates, campa
     };
   }, []);
 
-  // Só templates aprovados pela Meta aparecem — pendentes e rejeitados não podem ser usados em disparo.
-  const filtered = templates.filter(
-    (t) => isTemplateApproved(t) && (!t.tipo || t.tipo === campaignType || t.tipo === 'nao_classificado')
-  );
+  // Só entram templates aprovados pela Meta e já classificados para o tipo da campanha.
+  // Pendentes, rejeitados e "não classificados" não podem ser usados e ficam fora da lista.
+  const approved = templates.filter(isTemplateApproved);
+  const filtered = approved.filter((t) => !t.tipo || t.tipo === campaignType);
+  const unclassifiedCount = approved.filter((t) => t.tipo === 'nao_classificado').length;
   const selected = templates.find((t) => t.id === value);
 
   return (
@@ -82,9 +83,6 @@ export const TemplateSelect: React.FC<TemplateSelectProps> = ({ templates, campa
             <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--ink-50)' }}>Nenhum template aprovado para este tipo. Sincronize em Gerenciar.</div>
           ) : (
             filtered.map((t) => {
-              const unclassified = t.tipo === 'nao_classificado';
-              const disabled = unclassified;
-              const suffix = unclassified ? 'Classifique o tipo em Gerenciar' : '';
               const isSelected = value === t.id;
               return (
                 <button
@@ -92,9 +90,7 @@ export const TemplateSelect: React.FC<TemplateSelectProps> = ({ templates, campa
                   type="button"
                   role="option"
                   aria-selected={isSelected}
-                  disabled={disabled}
                   onClick={() => {
-                    if (disabled) return;
                     onChange(t.id, t.nome);
                     setOpen(false);
                   }}
@@ -102,19 +98,22 @@ export const TemplateSelect: React.FC<TemplateSelectProps> = ({ templates, campa
                     width: '100%', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 2,
                     padding: '8px 10px', borderRadius: 8, border: 0,
                     background: isSelected ? 'var(--paper-100)' : 'transparent',
-                    cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1,
+                    cursor: 'pointer',
                     transition: 'background 120ms var(--ease-snap)',
                   }}
-                  onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = 'var(--paper-100)'; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--paper-100)'; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = isSelected ? 'var(--paper-100)' : 'transparent'; }}
                 >
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-300)' }}>{t.nome}</span>
-                  {suffix && (
-                    <span style={{ fontSize: 11, color: 'var(--ink-50)' }}>{suffix}</span>
-                  )}
                 </button>
               );
             })
+          )}
+          {!isLoading && unclassifiedCount > 0 && (
+            <div style={{ padding: '10px 12px', fontSize: 11, color: 'var(--ink-50)', borderTop: '1px solid var(--paper-200)', marginTop: 4 }}>
+              {unclassifiedCount} template{unclassifiedCount !== 1 ? 's' : ''} aprovado{unclassifiedCount !== 1 ? 's' : ''} sem tipo definido
+              não aparece{unclassifiedCount !== 1 ? 'm' : ''} aqui. Classifique em Gerenciar para usar.
+            </div>
           )}
         </div>
       )}

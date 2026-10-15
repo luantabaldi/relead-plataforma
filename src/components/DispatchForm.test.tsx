@@ -92,15 +92,15 @@ describe('DispatchForm', () => {
     const options = within(listbox).getAllByRole('option');
     const nomes = options.map((o) => o.textContent);
 
-    // Tipo padrão: prospecção → aprovado do tipo + o não classificado (desabilitado)
+    // Tipo padrão: prospecção → só os aprovados e classificados como prospecção
     expect(nomes.some((n) => n?.includes('prosp_template_1'))).toBe(true);
-    expect(nomes.some((n) => n?.includes('novo_template_meta'))).toBe(true);
     expect(nomes.some((n) => n?.includes('prosp_pendente'))).toBe(false);
     expect(nomes.some((n) => n?.includes('prosp_rejeitado'))).toBe(false);
     expect(nomes.some((n) => n?.includes('reat_template_1'))).toBe(false);
 
-    const naoClassificado = options.find((o) => o.textContent?.includes('novo_template_meta')) as HTMLButtonElement;
-    expect(naoClassificado.disabled).toBe(true);
+    // Aprovado mas sem tipo definido: fica fora da lista e o operador é avisado
+    expect(nomes.some((n) => n?.includes('novo_template_meta'))).toBe(false);
+    expect(within(listbox).getByText(/1 template aprovado sem tipo definido/)).toBeTruthy();
   });
 
   it('carrega empreendimentos ativos e preenche os campos ao selecionar', async () => {
