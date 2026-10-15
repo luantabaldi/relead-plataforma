@@ -35,3 +35,16 @@ export function formatTemplateMessage(text: string, defaultLeadName?: string): s
       return text;
   }
 }
+
+/**
+ * O corpo do template (como aprovado na Meta) tem variáveis — {{1}}, {{nome}}?
+ * O workflow de disparo envia um parâmetro de corpo por template; mandar parâmetro a um
+ * template sem variáveis (ou o inverso) é recusado pela Meta com o erro #132000.
+ * Devolve null quando o corpo ainda não foi sincronizado e não dá para saber.
+ */
+export function corpoTemVariaveis(componentes: unknown): boolean | null {
+  if (!Array.isArray(componentes)) return null;
+  const body = componentes.find((c: any) => c?.type === 'BODY');
+  if (!body || typeof body.text !== 'string') return null;
+  return /\{\{[^{}]+\}\}/.test(body.text);
+}

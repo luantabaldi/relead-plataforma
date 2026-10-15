@@ -8,6 +8,7 @@ import { useCotacaoUsd } from '../hooks/useCotacaoUsd';
 import { chaveTelefone } from '../lib/telefone';
 import { agentePadraoDoTipo, tipoCampanhaDoAgente, AgenteOption } from '../lib/agentes';
 import { estimarCustoPorTarifa, Tarifa } from '../lib/custo';
+import { corpoTemVariaveis } from '../lib/template';
 
 interface NumeroOption {
   phone_number_id: string;
@@ -97,7 +98,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
   const [isLoadingEmpreendimentos, setIsLoadingEmpreendimentos] = useState(true);
 
-  const [templates, setTemplates] = useState<Array<{ id: string; nome: string; tipo?: string; status_meta?: string; componentes?: any[]; categoria?: string }>>([]);
+  const [templates, setTemplates] = useState<Array<{ id: string; nome: string; tipo?: string; status_meta?: string; componentes?: any[]; categoria?: string; tem_variaveis?: boolean }>>([]);
   const [step, setStep] = useState(1);
   const [maxStepReached, setMaxStepReached] = useState(1);
   const [empreendimentosList, setEmpreendimentosList] = useState<Array<{ id: string; nome: string; descricao_ia: string; ativo: boolean }>>([]);
@@ -125,7 +126,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
         if (error) throw error;
 
         if (data && data.length > 0) {
-          setTemplates(data.map((t: any) => ({ id: t.id, nome: t.nome, tipo: t.tipo, status_meta: t.status_meta, componentes: t.componentes, categoria: t.categoria })));
+          setTemplates(data.map((t: any) => ({ id: t.id, nome: t.nome, tipo: t.tipo, status_meta: t.status_meta, componentes: t.componentes, categoria: t.categoria, tem_variaveis: t.tem_variaveis })));
         } else {
           setTemplates(TEMPLATES.map(t => ({ id: t.id, nome: t.name })));
         }
@@ -478,6 +479,21 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
 
       if (!formData.numeroId) throw new Error('Selecione o número do disparo.');
       if (!formData.agenteSlug) throw new Error('Selecione o agente de mensagem.');
+
+      // Variáveis do template: o workflow envia (ou não) o nome do lead como parâmetro conforme
+      // o campo tem_variaveis. Se ele divergir do corpo aprovado na Meta, o envio inteiro falha
+      // (erro #132000). O corpo na Meta é a fonte da verdade: corrige antes de gravar os leads.
+      const variaveisNaMeta = corpoTemVariaveis(selectedTemplate?.componentes);
+      if (selectedTemplate && variaveisNaMeta !== null && variaveisNaMeta !== selectedTemplate.tem_variaveis) {
+        const { error: ajusteErr } = await supabase
+          .from('templates_wpp')
+          .update({ tem_variaveis: variaveisNaMeta })
+          .eq('id', selectedTemplate.id);
+        if (ajusteErr) {
+          throw new Error('Não foi possível ajustar as variáveis do template antes do envio. Nenhuma mensagem foi enviada.');
+        }
+        setTemplates((prev) => prev.map((t) => (t.id === selectedTemplate.id ? { ...t, tem_variaveis: variaveisNaMeta } : t)));
+      }
 
       // Blacklist: consulta de novo na hora do envio (alguém pode ter sido bloqueado
       // depois que o CSV foi carregado). Se a consulta falhar, nada é enviado.
