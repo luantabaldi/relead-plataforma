@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { TabType } from '../components/TopNav';
 
-export type ManageSubTab = 'templates' | 'empreendimentos' | 'agendadas';
+export type ManageSubTab = 'templates' | 'empreendimentos' | 'agendadas' | 'agentes';
 export type DashboardsSubTab = 'performance' | 'custos';
 export type CampanhasSubTab = 'acompanhar' | 'historico' | 'nova';
 export type ContatosSubTab = 'leads' | 'bloqueados';
@@ -16,7 +16,7 @@ const SUBTAB_CONFIG: Record<TabType, { values: readonly SubTab[]; default: SubTa
   dashboards: { values: ['performance', 'custos'], default: 'performance' },
   campanhas: { values: ['acompanhar', 'historico', 'nova'], default: 'acompanhar' },
   contatos: { values: ['leads', 'bloqueados'], default: 'leads' },
-  gerenciar: { values: ['templates', 'empreendimentos', 'agendadas'], default: 'templates' },
+  gerenciar: { values: ['templates', 'empreendimentos', 'agendadas', 'agentes'], default: 'templates' },
 };
 
 // Compatibilidade com hashes do menu antigo (8 abas), para não quebrar
@@ -44,6 +44,7 @@ const LEGACY_TAB_MAP: Record<string, { tab: TabType; sub: SubTab }> = {
  *   #/gerenciar             → defaults to 'templates'
  *   #/gerenciar/empreendimentos
  *   #/gerenciar/agendadas
+ *   #/gerenciar/agentes
  * Old flat hashes (#/analisar, #/kpis, #/logs, #/acompanhar, #/disparar,
  * #/leads, #/blacklist) redirect to their new group/sub-tab equivalent.
  */

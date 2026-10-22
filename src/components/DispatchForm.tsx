@@ -156,7 +156,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
             .eq('ativo', true)
             .eq('status', 'CONNECTED')
             .order('numero_display', { ascending: true }),
-          supabase.from('agentes').select('slug, nome, descricao, padrao').eq('ativo', true).order('nome', { ascending: true }),
+          supabase.from('agentes').select('slug, nome, descricao, padrao, modo, tipo_campanha').eq('ativo', true).order('nome', { ascending: true }),
           supabase.from('meta_tarifas').select('categoria, preco_usd').eq('pais_codigo', 55),
         ]);
         const nums = (num.data || []) as NumeroOption[];
@@ -540,7 +540,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
       const leadsToInsert = leadsPermitidos.map((lead) => ({
         telefone: lead.telefone,
         nome_lead: lead.nome,
-        tipo_campanha: tipoCampanhaDoAgente(formData.agenteSlug),
+        tipo_campanha: tipoCampanhaDoAgente(formData.agenteSlug, agentes),
         status_reativacao: 'Pendente',
         data_envio: null,
         mensagem_enviada: selectedTemplate?.nome || '',
@@ -661,7 +661,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
           body: JSON.stringify({
             status: 'iniciar',
             nome_campanha: formData.campaignName,
-            tipo_campanha: tipoCampanhaDoAgente(formData.agenteSlug),
+            tipo_campanha: tipoCampanhaDoAgente(formData.agenteSlug, agentes),
             template_id: formData.templateId,
             imagem_url: formData.imagemUrl.trim() || null,
             phone_number_id: formData.numeroId,
@@ -1013,7 +1013,7 @@ export const DispatchForm: React.FC<DispatchFormProps> = ({ onSuccess }) => {
                   const slug = e.target.value;
                   set({
                     agenteSlug: slug,
-                    campaignType: slug ? tipoCampanhaDoAgente(slug) : formData.campaignType,
+                    campaignType: slug ? tipoCampanhaDoAgente(slug, agentes) : formData.campaignType,
                     templateId: '',
                     templateName: '',
                   });

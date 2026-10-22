@@ -10,6 +10,7 @@ import { ActiveDispatchesModal } from '../components/ActiveDispatchesModal';
 import { CampaignLogsTab } from '../components/CampaignLogsTab';
 import { LeadsTab } from '../components/LeadsTab';
 import { BlacklistTab } from '../components/BlacklistTab';
+import { AgentesTab } from '../components/AgentesTab';
 import { useConversations } from '../hooks/useConversations';
 import { useHash, ManageSubTab, DashboardsSubTab, CampanhasSubTab, ContatosSubTab } from '../hooks/useHash';
 import { useToast } from '../hooks/useToast';
@@ -653,7 +654,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
             <div className="page-hero">
               <div>
                 <h2>Gerenciar <em>dados</em></h2>
-                <p className="t-caption" style={{ marginTop: 4 }}>Templates · Empreendimentos · Campanhas agendadas</p>
+                <p className="t-caption" style={{ marginTop: 4 }}>Templates · Empreendimentos · Campanhas agendadas · Agentes de IA</p>
               </div>
             </div>
 
@@ -743,7 +744,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ session }) => {
               >
                 Campanhas agendadas
               </button>
+              <button
+                type="button"
+                onClick={() => navigate('gerenciar', 'agentes')}
+                style={{
+                  background: 'none', border: 'none',
+                  borderBottom: activeManageTab === 'agentes' ? '2px solid var(--navy-500)' : '2px solid transparent',
+                  padding: '8px 16px', cursor: 'pointer', fontWeight: 600, fontSize: 14,
+                  color: activeManageTab === 'agentes' ? 'var(--navy-700)' : 'var(--ink-300)',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Agentes de IA
+              </button>
             </div>
+
+            {activeManageTab === 'agentes' && (
+              <div style={{ marginTop: 20 }}>
+                <AgentesTab />
+              </div>
+            )}
 
             {/* Painel Templates */}
             {activeManageTab === 'templates' && (

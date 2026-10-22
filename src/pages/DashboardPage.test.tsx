@@ -188,7 +188,7 @@ describe('DashboardPage - Gerenciar CRUD', () => {
         fireEvent.click(gerenciarBtn);
       });
 
-      expect(screen.getByText('Templates · Empreendimentos · Campanhas agendadas')).toBeInTheDocument();
+      expect(screen.getByText('Templates · Empreendimentos · Campanhas agendadas · Agentes de IA')).toBeInTheDocument();
       
       await waitFor(() => {
         expect(supabase.from).toHaveBeenCalledWith('templates_wpp');
