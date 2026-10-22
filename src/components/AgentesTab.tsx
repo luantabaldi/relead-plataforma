@@ -191,6 +191,14 @@ export const AgentesTab: React.FC = () => {
                             <Icon name="trash" size={14} style={{ color: 'var(--rose-500)' }} />
                           </button>
                         </div>
+                        <input
+                          className="input"
+                          aria-label={`Rótulo da pergunta ${i + 1}`}
+                          placeholder="Rótulo curto no CRM (ex.: Renda familiar)"
+                          value={p.rotulo ?? ''}
+                          onChange={(e) => alterarPergunta(i, { rotulo: e.target.value })}
+                          style={{ marginLeft: 28, width: 'calc(100% - 28px)' }}
+                        />
                         <textarea
                           className="input"
                           aria-label={`Opções da pergunta ${i + 1}`}

@@ -16,6 +16,8 @@ export interface Pergunta {
   pergunta: string;
   /** Respostas esperadas; o lead escolhe pelo número. Ausente = resposta livre. */
   opcoes?: string[];
+  /** Nome curto da pergunta no resumo enviado ao CRM (ex.: "Renda familiar"). */
+  rotulo?: string;
 }
 
 /** Linha completa da tabela `agentes`, como a tela de gerenciamento a edita. */
@@ -65,6 +67,7 @@ export function slugDoNome(nome: string): string {
 export interface PerguntaForm {
   pergunta: string;
   opcoes: string;
+  rotulo?: string;
 }
 
 export interface AgenteForm {
@@ -97,7 +100,11 @@ export const AGENTE_NOVO: AgenteForm = {
 };
 
 export function agenteParaForm(a: Agente): AgenteForm {
-  const perguntas = a.perguntas.map((p) => ({ pergunta: p.pergunta, opcoes: (p.opcoes ?? []).join('\n') }));
+  const perguntas = a.perguntas.map((p) => ({
+    pergunta: p.pergunta,
+    opcoes: (p.opcoes ?? []).join('\n'),
+    rotulo: p.rotulo ?? '',
+  }));
   return {
     id: a.id,
     slug: a.slug,
@@ -158,10 +165,12 @@ export function formParaLinha(form: AgenteForm) {
   const perguntas = ehQualificacao
     ? form.perguntas.map((p, i) => {
         const opcoes = linhasDeOpcoes(p.opcoes);
+        const rotulo = (p.rotulo ?? '').trim();
         return {
           id: `p${i + 1}`,
           pergunta: p.pergunta.trim(),
           ...(opcoes.length > 0 ? { opcoes } : {}),
+          ...(rotulo ? { rotulo } : {}),
         };
       })
     : [];

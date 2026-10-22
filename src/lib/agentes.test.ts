@@ -100,13 +100,26 @@ describe('formParaLinha', () => {
       { id: 'p2', pergunta: 'B?' },
     ]);
   });
+  it('grava o rótulo da pergunta só quando preenchido', () => {
+    const linha = formParaLinha({
+      ...valido,
+      perguntas: [{ pergunta: 'A?', opcoes: '', rotulo: ' Renda ' }, { pergunta: 'B?', opcoes: '', rotulo: '  ' }],
+    });
+    expect(linha.perguntas).toEqual([
+      { id: 'p1', pergunta: 'A?', rotulo: 'Renda' },
+      { id: 'p2', pergunta: 'B?' },
+    ]);
+  });
   it('lê de volta as opções gravadas, uma por linha', () => {
     const form = agenteParaForm({
       id: 'x', slug: 's', nome: 'N', descricao: null, ativo: true, padrao: false, modo: 'qualificacao',
       tipo_campanha: 'reativacao', min_perguntas: 1, criterio_qualificacao: 'c', instrucoes: null,
       perguntas: [{ id: 'p1', pergunta: 'A?', opcoes: ['Sim', 'Não'] }, { id: 'p2', pergunta: 'B?' }],
     });
-    expect(form.perguntas).toEqual([{ pergunta: 'A?', opcoes: 'Sim\nNão' }, { pergunta: 'B?', opcoes: '' }]);
+    expect(form.perguntas).toEqual([
+      { pergunta: 'A?', opcoes: 'Sim\nNão', rotulo: '' },
+      { pergunta: 'B?', opcoes: '', rotulo: '' },
+    ]);
   });
   it('mantém o slug existente na edição', () => {
     expect(formParaLinha({ ...valido, id: 'x', slug: 'antigo', nome: 'Novo nome' }).slug).toBe('antigo');
